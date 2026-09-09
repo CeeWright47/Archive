@@ -8,6 +8,7 @@
     "scheme": "archive",
     "userInterfaceStyle": "dark",
     "ios": {
+      "bundleIdentifier": "com.christopherwright.archive",
       "icon": "./assets/expo.icon"
     },
     "android": {

@@ -46,6 +46,12 @@ export const images = {
     return file.exists ? file.uri : null;
   },
 
+  readBase64(id: string): string | null {
+    if (Platform.OS === "web") return null;
+    const file = fileFor(id);
+    return file.exists ? file.base64Sync() : null;
+  },
+
   delete(id: string): void {
     if (Platform.OS === "web") return;
     const file = fileFor(id);

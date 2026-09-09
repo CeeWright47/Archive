@@ -1,17 +1,20 @@
-import { useEffect, useState } from 'react';
 import { Stack } from 'expo-router';
 import * as SplashScreen from 'expo-splash-screen';
 import { StatusBar } from 'expo-status-bar';
+import { useEffect, useState } from 'react';
 import { View } from 'react-native';
 
+import { AuthProvider, useAuth } from '@/auth/AuthProvider';
+import SignInScreen from '@/components/SignInScreen';
 import { storage } from '@/storage';
 import { runMigrations } from '@/storage/migrations';
 import { theme } from '@/theme/tokens';
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
-export default function RootLayout() {
+function RootNavigator() {
   const [ready, setReady] = useState(false);
+  const { session, initializing } = useAuth();
 
   useEffect(() => {
     runMigrations(storage)
@@ -20,13 +23,22 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
-    if (ready) {
+    if (ready && !initializing) {
       SplashScreen.hideAsync().catch(() => {});
     }
-  }, [ready]);
+  }, [ready, initializing]);
 
-  if (!ready) {
+  if (!ready || initializing) {
     return <View style={{ flex: 1, backgroundColor: theme.colors.background }} />;
+  }
+
+  if (!session) {
+    return (
+      <>
+        <StatusBar style="light" />
+        <SignInScreen />
+      </>
+    );
   }
 
   return (
@@ -47,3 +59,12 @@ export default function RootLayout() {
     </>
   );
 }
+
+export default function RootLayout() {
+  return (
+    <AuthProvider>
+      <RootNavigator />
+    </AuthProvider>
+  );
+}
+

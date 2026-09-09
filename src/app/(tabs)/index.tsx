@@ -45,6 +45,9 @@ export default function WardrobeScreen() {
           category: DEFAULT_CATEGORY,
           color: "",
           material: "",
+          vibe: "",
+          seasons: [],
+          fit: null,
           createdAt: Date.now() + index,
         };
       });

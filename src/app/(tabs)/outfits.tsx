@@ -1,204 +1,223 @@
-import { useCallback, useEffect, useState } from "react";
+import { Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
+import { useEffect, useState } from "react";
 import {
+    ActivityIndicator,
     Alert,
-    FlatList,
-    Modal,
     Pressable,
+    RefreshControl,
+    ScrollView,
     StyleSheet,
     Text,
+    TextInput,
     View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { AddOutfitButton } from "@/components/outfits/AddOutfitButton";
-import { OutfitCard } from "@/components/outfits/OutfitCard";
-import { OutfitDetailSheet } from "@/components/outfits/OutfitDetailSheet";
-import { pickImage, type PickedImage } from "@/media/pickImage";
-import { images } from "@/storage/images";
-import {
-    generateOutfitId,
-    generateOutfitImageId,
-    outfits,
-    type Outfit,
-} from "@/storage/outfits";
-import { pieces, type Piece } from "@/storage/pieces";
+import { fits, type Fit } from "@/storage/fits";
+import { imageUriFor, pieces, type Piece } from "@/storage/pieces";
 import { theme } from "@/theme/tokens";
 
-function today(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
 export default function OutfitsScreen() {
-  const [allOutfits, setAllOutfits] = useState<Outfit[]>([]);
+  const insets = useSafeAreaInsets();
+  const [occasion, setOccasion] = useState("");
+  const [allFits, setAllFits] = useState<Fit[]>([]);
   const [allPieces, setAllPieces] = useState<Piece[]>([]);
-  const [selectedOutfitId, setSelectedOutfitId] = useState<string | null>(null);
-  const [newOutfitId, setNewOutfitId] = useState<string | null>(null);
-  const [adding, setAdding] = useState(false);
-  const [choosingSource, setChoosingSource] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [generating, setGenerating] = useState(false);
+
+  async function load() {
+    try {
+      setError(null);
+      const [storedFits, storedPieces] = await Promise.all([
+        fits.list(),
+        pieces.list(),
+      ]);
+      setAllFits(storedFits);
+      setAllPieces(storedPieces);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Couldn’t load fits.");
+    }
+  }
 
   useEffect(() => {
-    Promise.all([outfits.list(), pieces.list()]).then(
-      ([storedOutfits, storedPieces]) => {
-        setAllOutfits(storedOutfits);
-        setAllPieces(storedPieces);
-      },
-    );
+    load().finally(() => setLoading(false));
   }, []);
 
-  const savePickedImages = useCallback(async (picked: PickedImage[]) => {
-    if (picked.length === 0) return;
-    setAdding(true);
-    try {
-      const selected = picked.slice(0, 3);
-      const imageIds: string[] = [];
-      for (const asset of selected) {
-        const imageId = generateOutfitImageId();
-        await images.saveFromUri(imageId, asset.uri);
-        imageIds.push(imageId);
-      }
+  async function handleRefresh() {
+    setRefreshing(true);
+    await load();
+    setRefreshing(false);
+  }
 
-      const outfit: Outfit = {
-        id: generateOutfitId(),
-        userId: null,
-        sourceType: "self-photo",
-        imageIds,
-        dateWorn: today(),
-        pieceIds: [],
-        profileTag: null,
-        occasion: "",
-        note: "",
-        inInspo: false,
-        added: Date.now(),
-      };
-      await outfits.save(outfit);
-      setAllOutfits((current) => [...current, outfit]);
-      setNewOutfitId(outfit.id);
-      setSelectedOutfitId(outfit.id);
-    } catch (error) {
+  async function handleDeleteFit(id: string) {
+    const previous = allFits;
+    setAllFits((current) => current.filter((fit) => fit.id !== id));
+    try {
+      await fits.remove(id);
+    } catch (err) {
+      setAllFits(previous);
       Alert.alert(
-        "Couldn’t add outfit",
-        error instanceof Error ? error.message : "Please try again.",
+        "Couldn’t delete fit",
+        err instanceof Error ? err.message : "Please try again.",
+      );
+    }
+  }
+
+  async function handleGenerateFit() {
+    setGenerating(true);
+    try {
+      Alert.alert(
+        "Coming soon",
+        "AI fit generation isn’t wired up yet — this needs an AI provider to be configured.",
       );
     } finally {
-      setAdding(false);
+      setGenerating(false);
     }
-  }, []);
+  }
 
-  const handlePickSource = useCallback(
-    async (source: "camera" | "library") => {
-      setChoosingSource(false);
-      try {
-        const picked =
-          source === "camera"
-            ? await pickImage.fromCamera()
-            : await pickImage.manyFromLibrary();
-        await savePickedImages(
-          Array.isArray(picked) ? picked : picked ? [picked] : [],
-        );
-      } catch (error) {
-        Alert.alert(
-          "Couldn’t open photos",
-          error instanceof Error ? error.message : "Please try again.",
-        );
-      }
-    },
-    [savePickedImages],
-  );
-
-  const handleSaveOutfit = useCallback(async (updated: Outfit) => {
-    await outfits.save(updated);
-    setAllOutfits((current) =>
-      current.map((outfit) => (outfit.id === updated.id ? updated : outfit)),
+  if (loading) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator color={theme.colors.accent} />
+      </View>
     );
-    setNewOutfitId(null);
-  }, []);
+  }
 
-  const handleDeleteOutfit = useCallback(async (id: string) => {
-    await outfits.remove(id);
-    setAllOutfits((current) => current.filter((outfit) => outfit.id !== id));
-    setSelectedOutfitId(null);
-    setNewOutfitId(null);
-  }, []);
-
-  const sortedOutfits = [...allOutfits].sort((a, b) => b.added - a.added);
-  const selectedOutfit =
-    allOutfits.find((outfit) => outfit.id === selectedOutfitId) ?? null;
+  if (error) {
+    return (
+      <View style={styles.center}>
+        <Text style={styles.emptyBody}>{error}</Text>
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
-      <FlatList
-        data={sortedOutfits}
-        keyExtractor={(outfit) => outfit.id}
-        numColumns={2}
-        columnWrapperStyle={styles.column}
-        contentContainerStyle={styles.grid}
-        renderItem={({ item }) => (
-          <OutfitCard
-            outfit={item}
-            onPress={() => setSelectedOutfitId(item.id)}
-          />
-        )}
-        ListEmptyComponent={
-          <View style={styles.empty}>
-            <Text style={styles.emptyHeading}>No outfits logged</Text>
-            <Text style={styles.emptyBody}>
-              Add a photo to start your outfit journal.
-            </Text>
-          </View>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.colors.accent} />
         }
-      />
-
-      <AddOutfitButton
-        onPress={() => setChoosingSource(true)}
-        loading={adding}
-      />
-
-      <Modal
-        visible={choosingSource}
-        animationType="fade"
-        transparent
-        onRequestClose={() => setChoosingSource(false)}
       >
-        <View style={styles.sourceModal}>
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel="Close photo source chooser"
-            style={styles.sourceBackdrop}
-            onPress={() => setChoosingSource(false)}
-          />
-          <View style={styles.sourceSheet}>
-            <Text style={styles.sourceHeading}>Add outfit</Text>
-            <Text style={styles.sourceBody}>
-              Choose where to get your photo.
-            </Text>
-            <Pressable
-              accessibilityRole="button"
-              style={styles.sourcePrimaryButton}
-              onPress={() => handlePickSource("camera")}
-            >
-              <Text style={styles.sourcePrimaryLabel}>Take photo</Text>
-            </Pressable>
-            <Pressable
-              accessibilityRole="button"
-              style={styles.sourceSecondaryButton}
-              onPress={() => handlePickSource("library")}
-            >
-              <Text style={styles.sourceSecondaryLabel}>Photo library</Text>
-            </Pressable>
-          </View>
-        </View>
-      </Modal>
+        <Text style={styles.heading}>Build a fit</Text>
+        <TextInput
+          style={styles.occasionInput}
+          value={occasion}
+          onChangeText={setOccasion}
+          placeholder="What’s the occasion?"
+          placeholderTextColor={theme.colors.textMuted}
+        />
 
-      <OutfitDetailSheet
-        outfit={selectedOutfit}
-        pieces={allPieces}
-        startInEditMode={selectedOutfitId === newOutfitId}
-        onClose={() => {
-          setSelectedOutfitId(null);
-          setNewOutfitId(null);
-        }}
-        onSave={handleSaveOutfit}
-        onDelete={handleDeleteOutfit}
-      />
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Lookbook</Text>
+          <Text style={styles.sectionSubtitle}>
+            {allFits.length} fit{allFits.length === 1 ? "" : "s"} on file. Tap a
+            piece row to see what’s in it.
+          </Text>
+        </View>
+
+        {allFits.length === 0 ? (
+          <Text style={styles.emptyBody}>No saved fits yet.</Text>
+        ) : (
+          <View style={styles.fitList}>
+            {allFits.map((fit) => (
+              <FitCard
+                key={fit.id}
+                fit={fit}
+                pieces={allPieces}
+                onDelete={() => handleDeleteFit(fit.id)}
+              />
+            ))}
+          </View>
+        )}
+      </ScrollView>
+
+      <View
+        style={[styles.dock, { marginBottom: insets.bottom + theme.spacing.xs }]}
+      >
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Generate fit"
+          disabled={generating}
+          onPress={handleGenerateFit}
+          style={styles.generateButton}
+        >
+          {generating ? (
+            <ActivityIndicator color={theme.colors.background} />
+          ) : (
+            <Ionicons
+              name="sparkles-outline"
+              size={theme.spacing.lg}
+              color={theme.colors.background}
+            />
+          )}
+          <Text style={styles.generateLabel}>Generate fit</Text>
+        </Pressable>
+      </View>
+    </View>
+  );
+}
+
+function FitCard({
+  fit,
+  pieces: allPieces,
+  onDelete,
+}: {
+  fit: Fit;
+  pieces: Piece[];
+  onDelete: () => void;
+}) {
+  const linkedPieces = fit.pieceIds
+    .map((id) => allPieces.find((piece) => piece.id === id))
+    .filter((piece): piece is Piece => piece != null);
+
+  return (
+    <View style={styles.fitCard}>
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={`Delete ${fit.title || "fit"}`}
+        onPress={onDelete}
+        style={styles.fitDelete}
+      >
+        <Ionicons name="close" size={16} color={theme.colors.textMuted} />
+      </Pressable>
+      <Text style={styles.fitTitle}>{fit.title || "Untitled fit"}</Text>
+      {fit.occasion.length > 0 && (
+        <View style={styles.occasionTag}>
+          <Text style={styles.occasionTagText}>{fit.occasion}</Text>
+        </View>
+      )}
+      {linkedPieces.length > 0 && (
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.pieceRow}
+        >
+          {linkedPieces.map((piece) => {
+            const uri = imageUriFor(piece);
+            return (
+              <View key={piece.id} style={styles.pieceThumbWrapper}>
+                {uri ? (
+                  <Image
+                    source={{ uri }}
+                    style={styles.pieceThumb}
+                    contentFit="cover"
+                  />
+                ) : (
+                  <View style={[styles.pieceThumb, styles.pieceThumbFallback]} />
+                )}
+              </View>
+            );
+          })}
+        </ScrollView>
+      )}
+      {fit.why.length > 0 && <Text style={styles.fitBody}>{fit.why}</Text>}
+      {fit.missing.length > 0 && (
+        <Text style={styles.fitMissing}>Missing: {fit.missing}</Text>
+      )}
     </View>
   );
 }
@@ -207,93 +226,143 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
-    paddingTop: theme.spacing.sm,
   },
-  grid: {
-    paddingHorizontal: theme.spacing.md,
+  content: {
+    padding: theme.spacing.md,
     paddingBottom: theme.spacing.xxxl,
-    gap: theme.spacing.md,
-    flexGrow: 1,
+    gap: theme.spacing.sm,
   },
-  column: {
-    gap: theme.spacing.md,
-  },
-  empty: {
+  center: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    gap: theme.spacing.xxs,
-    paddingHorizontal: theme.spacing.lg,
+    backgroundColor: theme.colors.background,
   },
-  emptyHeading: {
-    fontSize: theme.typography.headline.fontSize,
-    lineHeight: theme.typography.headline.lineHeight,
-    fontWeight: theme.typography.headline.fontWeight,
+  heading: {
+    fontSize: theme.typography.title2.fontSize,
+    lineHeight: theme.typography.title2.lineHeight,
+    fontWeight: theme.typography.title2.fontWeight,
     color: theme.colors.text,
-    textAlign: "center",
+    fontFamily: theme.fonts.serif,
   },
-  emptyBody: {
+  occasionInput: {
     fontSize: theme.typography.body.fontSize,
     lineHeight: theme.typography.body.lineHeight,
-    color: theme.colors.textMuted,
-    textAlign: "center",
-  },
-  sourceModal: {
-    flex: 1,
-    justifyContent: "flex-end",
-  },
-  sourceBackdrop: {
-    position: "absolute",
-    top: theme.spacing.none,
-    right: theme.spacing.none,
-    bottom: theme.spacing.none,
-    left: theme.spacing.none,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-  },
-  sourceSheet: {
-    gap: theme.spacing.sm,
-    padding: theme.spacing.md,
-    paddingBottom: theme.spacing.xl,
-    borderTopLeftRadius: theme.radii.xl,
-    borderTopRightRadius: theme.radii.xl,
+    color: theme.colors.text,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: theme.colors.border,
+    borderRadius: theme.radii.md,
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.sm,
     backgroundColor: theme.colors.backgroundElevated,
   },
-  sourceHeading: {
-    fontFamily: theme.fonts.serif,
+  sectionHeader: {
+    gap: theme.spacing.xxs,
+    marginTop: theme.spacing.sm,
+  },
+  sectionTitle: {
     fontSize: theme.typography.title3.fontSize,
     lineHeight: theme.typography.title3.lineHeight,
     fontWeight: theme.typography.title3.fontWeight,
     color: theme.colors.text,
   },
-  sourceBody: {
+  sectionSubtitle: {
+    fontSize: theme.typography.footnote.fontSize,
+    lineHeight: theme.typography.footnote.lineHeight,
+    color: theme.colors.textMuted,
+  },
+  emptyBody: {
     fontSize: theme.typography.body.fontSize,
     lineHeight: theme.typography.body.lineHeight,
     color: theme.colors.textMuted,
-    marginBottom: theme.spacing.xxs,
   },
-  sourcePrimaryButton: {
-    alignItems: "center",
-    paddingVertical: theme.spacing.sm,
+  fitList: {
+    gap: theme.spacing.sm,
+  },
+  fitCard: {
+    gap: theme.spacing.xxs,
+    padding: theme.spacing.md,
+    borderRadius: theme.radii.lg,
+    backgroundColor: theme.colors.backgroundElevated,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: theme.colors.border,
+  },
+  fitDelete: {
+    position: "absolute",
+    top: theme.spacing.xs,
+    right: theme.spacing.xs,
+    padding: theme.spacing.xxs,
+    zIndex: 1,
+  },
+  fitTitle: {
+    fontSize: theme.typography.headline.fontSize,
+    lineHeight: theme.typography.headline.lineHeight,
+    fontWeight: theme.typography.headline.fontWeight,
+    color: theme.colors.text,
+    paddingRight: theme.spacing.lg,
+  },
+  occasionTag: {
+    alignSelf: "flex-start",
+    paddingHorizontal: theme.spacing.xs,
+    paddingVertical: theme.spacing.xxs,
+    borderRadius: theme.radii.pill,
+    backgroundColor: theme.colors.background,
+  },
+  occasionTagText: {
+    fontSize: theme.typography.caption1.fontSize,
+    lineHeight: theme.typography.caption1.lineHeight,
+    color: theme.colors.accent,
+  },
+  pieceRow: {
+    gap: theme.spacing.xs,
+    paddingVertical: theme.spacing.xxs,
+  },
+  pieceThumbWrapper: {
     borderRadius: theme.radii.md,
+    overflow: "hidden",
+  },
+  pieceThumb: {
+    width: 64,
+    height: 64,
+  },
+  pieceThumbFallback: {
+    backgroundColor: theme.colors.background,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: theme.colors.border,
+  },
+  fitBody: {
+    fontSize: theme.typography.subheadline.fontSize,
+    lineHeight: theme.typography.subheadline.lineHeight,
+    color: theme.colors.text,
+    marginTop: theme.spacing.xxs,
+  },
+  fitMissing: {
+    fontSize: theme.typography.caption1.fontSize,
+    lineHeight: theme.typography.caption1.lineHeight,
+    color: theme.colors.textMuted,
+    marginTop: theme.spacing.xxs,
+  },
+  dock: {
+    position: "absolute",
+    left: theme.spacing.md,
+    right: theme.spacing.md,
+    bottom: 0,
+    backgroundColor: theme.colors.background,
+  },
+  generateButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: theme.spacing.xs,
+    paddingVertical: theme.spacing.sm,
+    borderRadius: theme.radii.pill,
     backgroundColor: theme.colors.accent,
   },
-  sourcePrimaryLabel: {
+  generateLabel: {
     fontSize: theme.typography.headline.fontSize,
     lineHeight: theme.typography.headline.lineHeight,
     fontWeight: theme.typography.headline.fontWeight,
     color: theme.colors.background,
   },
-  sourceSecondaryButton: {
-    alignItems: "center",
-    paddingVertical: theme.spacing.sm,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: theme.colors.border,
-    borderRadius: theme.radii.md,
-  },
-  sourceSecondaryLabel: {
-    fontSize: theme.typography.headline.fontSize,
-    lineHeight: theme.typography.headline.lineHeight,
-    fontWeight: theme.typography.headline.fontWeight,
-    color: theme.colors.text,
-  },
 });
+
