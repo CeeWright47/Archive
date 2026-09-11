@@ -1,26 +1,30 @@
 const crypto = require("node:crypto");
+const fs = require("node:fs");
 const path = require("node:path");
+const { parseEnv } = require("node:util");
 const postgres = require("postgres");
 
+let environment;
 try {
-  process.loadEnvFile(path.resolve(__dirname, "..", ".env"));
+  environment = parseEnv(
+    fs.readFileSync(path.resolve(__dirname, "..", ".env"), "utf8"),
+  );
 } catch (error) {
   if (error.code !== "ENOENT") throw error;
   console.error("Missing .env file. Copy .env.example to .env and fill it in.");
   process.exit(1);
 }
 
-const neonDatabaseUrl =
-  process.env.NEON_DATABASE_URL || process.env.DATABASE_URL;
-const supabaseDatabaseUrl = process.env.SUPABASE_DB_URL;
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
-const supabaseUserJwt = process.env.SUPABASE_USER_JWT;
-const supabaseUserEmail = process.env.SUPABASE_USER_EMAIL;
-const supabaseUserPassword = process.env.SUPABASE_USER_PASSWORD;
+const neonDatabaseUrl = environment.NEON_DATABASE_URL;
+const supabaseDatabaseUrl = environment.SUPABASE_DB_URL;
+const supabaseUrl = environment.EXPO_PUBLIC_SUPABASE_URL;
+const supabaseAnonKey = environment.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+const supabaseUserJwt = environment.SUPABASE_USER_JWT;
+const supabaseUserEmail = environment.SUPABASE_USER_EMAIL;
+const supabaseUserPassword = environment.SUPABASE_USER_PASSWORD;
 
 const missingVariables = [
-  ["NEON_DATABASE_URL (or DATABASE_URL)", neonDatabaseUrl],
+  ["NEON_DATABASE_URL", neonDatabaseUrl],
   ["SUPABASE_DB_URL", supabaseDatabaseUrl],
   ["EXPO_PUBLIC_SUPABASE_URL", supabaseUrl],
   ["EXPO_PUBLIC_SUPABASE_ANON_KEY", supabaseAnonKey],
