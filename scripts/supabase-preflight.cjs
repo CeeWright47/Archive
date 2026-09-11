@@ -1,4 +1,3 @@
-const crypto = require("node:crypto");
 const fs = require("node:fs");
 const path = require("node:path");
 const { parseEnv } = require("node:util");
@@ -15,7 +14,6 @@ try {
   process.exit(1);
 }
 
-const neonDatabaseUrl = environment.NEON_DATABASE_URL;
 const supabaseDatabaseUrl = environment.SUPABASE_DB_URL;
 const supabaseUrl = environment.EXPO_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = environment.EXPO_PUBLIC_SUPABASE_ANON_KEY;
@@ -25,7 +23,6 @@ const supabaseUserEmail = environment.SUPABASE_USER_EMAIL;
 const supabaseUserPassword = environment.SUPABASE_USER_PASSWORD;
 
 const missingVariables = [
-  ["NEON_DATABASE_URL", neonDatabaseUrl],
   ["SUPABASE_DB_URL", supabaseDatabaseUrl],
   ["EXPO_PUBLIC_SUPABASE_URL", supabaseUrl],
   ["EXPO_PUBLIC_SUPABASE_ANON_KEY", supabaseAnonKey],
@@ -49,12 +46,6 @@ if (missingVariables.length > 0) {
   );
   process.exit(1);
 }
-
-const neon = postgres(neonDatabaseUrl, {
-  ssl: "require",
-  max: 1,
-  connect_timeout: 10,
-});
 
 const supabase = postgres(supabaseDatabaseUrl, {
   ssl: "require",
@@ -85,29 +76,6 @@ const pieceColumns = [
   "image",
   "added",
 ];
-
-function canonicalize(value) {
-  if (Array.isArray(value)) return value.map(canonicalize);
-  if (value && typeof value === "object") {
-    return Object.fromEntries(
-      Object.keys(value)
-        .sort()
-        .map((key) => [key, canonicalize(value[key])]),
-    );
-  }
-  if (typeof value === "bigint") return value.toString();
-  return value;
-}
-
-function checksumPiece(piece) {
-  const content = Object.fromEntries(
-    pieceColumns.map((column) => [column, canonicalize(piece[column])]),
-  );
-  return crypto
-    .createHash("sha256")
-    .update(JSON.stringify(content))
-    .digest("hex");
-}
 
 function isImageBytes(buffer) {
   if (buffer.length < 4) return false;
@@ -160,27 +128,24 @@ function imageClassification(rows) {
   );
 }
 
-function comparePieces(sourceRows, targetRows) {
-  const source = new Map(
-    sourceRows.map((row) => [String(row.id), checksumPiece(row)]),
+function comparePieceIds(sourceRows, targetRows) {
+  const source = new Set(sourceRows.map((row) => String(row.id)));
+  const target = new Set(targetRows.map((row) => String(row.id)));
+  const missingFromAuthenticatedClient = [...source].filter(
+    (id) => !target.has(id),
   );
-  const target = new Map(
-    targetRows.map((row) => [String(row.id), checksumPiece(row)]),
+  const unexpectedForAuthenticatedClient = [...target].filter(
+    (id) => !source.has(id),
   );
-  const missingInSupabase = [...source.keys()].filter((id) => !target.has(id));
-  const extraInSupabase = [...target.keys()].filter((id) => !source.has(id));
-  const checksumMismatches = [...source.entries()]
-    .filter(([id, checksum]) => target.has(id) && target.get(id) !== checksum)
-    .map(([id]) => id);
 
   return {
     source_count: source.size,
     target_count: target.size,
-    ids_match: missingInSupabase.length === 0 && extraInSupabase.length === 0,
-    checksums_match: checksumMismatches.length === 0,
-    missing_in_supabase: missingInSupabase,
-    extra_in_supabase: extraInSupabase,
-    checksum_mismatches: checksumMismatches,
+    ids_match:
+      missingFromAuthenticatedClient.length === 0 &&
+      unexpectedForAuthenticatedClient.length === 0,
+    missing_from_authenticated_client: missingFromAuthenticatedClient,
+    unexpected_for_authenticated_client: unexpectedForAuthenticatedClient,
   };
 }
 
@@ -289,11 +254,6 @@ async function fetchAuthenticatedPieces(userJwt) {
 }
 
 async function run() {
-  const sourcePieces = await neon`
-    select id, name, category, color, material, vibe, seasons, image, added
-    from public.pieces
-    order by id
-  `;
   const targetPieces = await supabase`
     select id, name, category, color, material, vibe, seasons, image, added
     from public.pieces
@@ -312,24 +272,11 @@ async function run() {
     order by c.relname
   `;
 
-  const columns = await supabase`
-    select
-      table_name,
-      column_name,
-      data_type,
-      udt_name,
-      is_nullable,
-      column_default
-    from information_schema.columns
-    where table_schema = 'public'
-    order by table_name, ordinal_position
-  `;
-
   const policies = await supabase`
-    select tablename, policyname, permissive, roles, cmd, qual, with_check
+    select tablename, cmd
     from pg_policies
     where schemaname = 'public'
-    order by tablename, policyname
+    order by tablename, cmd
   `;
 
   const userIdForeignKeys = await supabase`
@@ -373,6 +320,9 @@ async function run() {
   `;
 
   const existingTables = new Set(tables.map((row) => row.table_name));
+  const missingTargetTables = targetTables.filter(
+    (tableName) => !existingTables.has(tableName),
+  );
   const targetCounts = {};
   for (const tableName of targetTables) {
     if (!existingTables.has(tableName)) continue;
@@ -384,7 +334,7 @@ async function run() {
 
   const userJwt = await getUserJwt();
   const authenticatedPieces = await fetchAuthenticatedPieces(userJwt);
-  const authenticatedComparison = comparePieces(
+  const authenticatedComparison = comparePieceIds(
     targetPieces,
     authenticatedPieces.rows,
   );
@@ -393,11 +343,8 @@ async function run() {
   console.log(
     JSON.stringify(
       {
-        reconciliation: comparePieces(sourcePieces, targetPieces),
-        image_classification: {
-          neon: imageClassification(sourcePieces),
-          supabase: imageClassification(targetPieces),
-        },
+        piece_count: targetPieces.length,
+        image_classification: imageClassification(targetPieces),
         authenticated_rls_check: {
           jwt_role: jwtClaims.role || null,
           jwt_subject_present: Boolean(jwtClaims.sub),
@@ -410,9 +357,15 @@ async function run() {
           matches_sql_visible_rows: authenticatedComparison,
         },
         user_id_foreign_keys: userIdForeignKeys,
-        tables,
-        columns,
-        policies,
+        table_rls: tables.filter((row) => targetTables.includes(row.table_name)),
+        policy_commands: policies.reduce((commands, policy) => {
+          commands[policy.tablename] ??= [];
+          if (!commands[policy.tablename].includes(policy.cmd)) {
+            commands[policy.tablename].push(policy.cmd);
+          }
+          return commands;
+        }, {}),
+        missing_target_tables: missingTargetTables,
         buckets,
         auth_user_count: authUserCount,
         target_counts: targetCounts,
@@ -431,4 +384,4 @@ run()
     );
     process.exitCode = 1;
   })
-  .finally(() => Promise.all([neon.end(), supabase.end()]));
+  .finally(() => supabase.end());
