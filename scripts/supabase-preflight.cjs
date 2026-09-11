@@ -1,5 +1,14 @@
 const crypto = require("node:crypto");
+const path = require("node:path");
 const postgres = require("postgres");
+
+try {
+  process.loadEnvFile(path.resolve(__dirname, "..", ".env"));
+} catch (error) {
+  if (error.code !== "ENOENT") throw error;
+  console.error("Missing .env file. Copy .env.example to .env and fill it in.");
+  process.exit(1);
+}
 
 const neonDatabaseUrl =
   process.env.NEON_DATABASE_URL || process.env.DATABASE_URL;
