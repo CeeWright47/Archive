@@ -19,6 +19,7 @@ const neonDatabaseUrl = environment.NEON_DATABASE_URL;
 const supabaseDatabaseUrl = environment.SUPABASE_DB_URL;
 const supabaseUrl = environment.EXPO_PUBLIC_SUPABASE_URL;
 const supabaseAnonKey = environment.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+const supabaseSecretKey = environment.SUPABASE_SECRET_KEY;
 const supabaseUserJwt = environment.SUPABASE_USER_JWT;
 const supabaseUserEmail = environment.SUPABASE_USER_EMAIL;
 const supabaseUserPassword = environment.SUPABASE_USER_PASSWORD;
@@ -32,9 +33,13 @@ const missingVariables = [
   .filter(([, value]) => !value)
   .map(([name]) => name);
 
-if (!supabaseUserJwt && !(supabaseUserEmail && supabaseUserPassword)) {
+if (
+  !supabaseUserJwt &&
+  !(supabaseUserEmail && supabaseUserPassword) &&
+  !(supabaseSecretKey && supabaseUserEmail)
+) {
   missingVariables.push(
-    "SUPABASE_USER_JWT (or SUPABASE_USER_EMAIL and SUPABASE_USER_PASSWORD)",
+    "SUPABASE_USER_JWT (or SUPABASE_USER_EMAIL with SUPABASE_USER_PASSWORD or SUPABASE_SECRET_KEY)",
   );
 }
 
@@ -190,6 +195,52 @@ function decodeJwtClaims(token) {
 
 async function getUserJwt() {
   if (supabaseUserJwt) return supabaseUserJwt;
+
+  if (supabaseSecretKey && supabaseUserEmail) {
+    const generateResponse = await fetch(
+      `${supabaseUrl.replace(/\/$/, "")}/auth/v1/admin/generate_link`,
+      {
+        method: "POST",
+        headers: {
+          apikey: supabaseSecretKey,
+          Authorization: `Bearer ${supabaseSecretKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          type: "magiclink",
+          email: supabaseUserEmail,
+        }),
+      },
+    );
+    const generatedLink = await generateResponse.json();
+    if (!generateResponse.ok || !generatedLink.hashed_token) {
+      throw new Error(
+        `Supabase admin user-token generation failed (${generateResponse.status})`,
+      );
+    }
+
+    const verifyResponse = await fetch(
+      `${supabaseUrl.replace(/\/$/, "")}/auth/v1/verify`,
+      {
+        method: "POST",
+        headers: {
+          apikey: supabaseAnonKey,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          type: "magiclink",
+          token_hash: generatedLink.hashed_token,
+        }),
+      },
+    );
+    const verifiedSession = await verifyResponse.json();
+    if (!verifyResponse.ok || !verifiedSession.access_token) {
+      throw new Error(
+        `Supabase user-token verification failed (${verifyResponse.status})`,
+      );
+    }
+    return verifiedSession.access_token;
+  }
 
   const response = await fetch(
     `${supabaseUrl.replace(/\/$/, "")}/auth/v1/token?grant_type=password`,
