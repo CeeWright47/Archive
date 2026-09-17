@@ -357,7 +357,9 @@ async function run() {
           matches_sql_visible_rows: authenticatedComparison,
         },
         user_id_foreign_keys: userIdForeignKeys,
-        table_rls: tables.filter((row) => targetTables.includes(row.table_name)),
+        table_rls: tables.filter((row) =>
+          targetTables.includes(row.table_name),
+        ),
         policy_commands: policies.reduce((commands, policy) => {
           commands[policy.tablename] ??= [];
           if (!commands[policy.tablename].includes(policy.cmd)) {
