@@ -17,7 +17,7 @@ const SCREEN_TITLES: Record<string, string> = {
   stores: "Stores",
   budget: "Budget",
   climate: "Climate",
-  "privacy/photos": "Where photos are stored",
+  privacy: "Where photos are stored",
 };
 
 export default function ProfileLayout() {

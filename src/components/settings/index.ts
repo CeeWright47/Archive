@@ -1,5 +1,6 @@
 export { Chip, ChipGroup, type ChipVariant, type TriState } from "./Chip";
 export { MultilineField, NumericField, TextField } from "./Fields";
+export { Divider, PrimaryButton, ProfilePage } from "./ProfilePage";
 export { SavedIndicator } from "./SavedIndicator";
 export { SectionHeader } from "./SectionHeader";
 export { SettingsGroup } from "./SettingsGroup";

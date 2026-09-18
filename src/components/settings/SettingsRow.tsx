@@ -34,7 +34,7 @@ export function SettingsRow({
     <Pressable
       accessibilityRole={onPress ? "button" : undefined}
       accessibilityState={{ disabled }}
-      disabled={disabled || !onPress}
+      disabled={disabled}
       onPress={onPress}
       style={({ pressed }) => [
         styles.row,
