@@ -54,12 +54,12 @@ export function PieceDetailSheet({
   const uri = imageUriFor(currentPiece);
   const fitOptions = pieceFitsFor(draft.category);
 
-  // Fit auto-saves on tap; in edit mode it rides along with the rest of the draft.
+  // Fit is persisted immediately because chip taps are independent of text edits.
   function handleFitChange(fit: PieceFit | null) {
     if (!draft) return;
     const next = { ...draft, fit };
     setDraft(next);
-    if (!editing) onSave(next);
+    onSave(next);
   }
 
   function handleSave() {
