@@ -5,7 +5,7 @@ export default function PrivacyLayout() {
   return (
     <Stack
       screenOptions={{
-          headerShown: false,
+        headerShown: false,
         title: "Where photos are stored",
         headerStyle: { backgroundColor: theme.colors.background },
         headerTintColor: theme.colors.text,
@@ -17,7 +17,10 @@ export default function PrivacyLayout() {
         },
       }}
     >
-      <Stack.Screen name="photos" options={{ title: "Where photos are stored" }} />
+      <Stack.Screen
+        name="photos"
+        options={{ title: "Where photos are stored" }}
+      />
     </Stack>
   );
 }

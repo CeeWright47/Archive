@@ -18,7 +18,9 @@ export default function AssessmentScreen() {
   const latest = useLatestAssessment();
   const legacy = useLegacyAssessment();
   const [running, setRunning] = useState(false);
-  const [generated, setGenerated] = useState<StyleAssessmentRecord | null>(null);
+  const [generated, setGenerated] = useState<StyleAssessmentRecord | null>(
+    null,
+  );
   const assessment = latest.data ?? generated;
   const run = async () => {
     setRunning(true);
@@ -62,7 +64,8 @@ export default function AssessmentScreen() {
             <Text style={styles.legacy}>{legacy.data.headline}</Text>
           ) : (
             <Text style={styles.legacy}>
-              Add a style description or closet pieces before running an assessment.
+              Add a style description or closet pieces before running an
+              assessment.
             </Text>
           )}
           <PrimaryButton
