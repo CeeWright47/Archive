@@ -1,14 +1,14 @@
-import { Stack } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
-import { StatusBar } from 'expo-status-bar';
-import { useEffect, useState } from 'react';
-import { View } from 'react-native';
+import { Stack } from "expo-router";
+import * as SplashScreen from "expo-splash-screen";
+import { StatusBar } from "expo-status-bar";
+import { useEffect, useState } from "react";
+import { View } from "react-native";
 
-import { AuthProvider, useAuth } from '@/auth/AuthProvider';
-import SignInScreen from '@/components/SignInScreen';
-import { storage } from '@/storage';
-import { runMigrations } from '@/storage/migrations';
-import { theme } from '@/theme/tokens';
+import { AuthProvider, useAuth } from "@/auth/AuthProvider";
+import SignInScreen from "@/components/SignInScreen";
+import { storage } from "@/storage";
+import { runMigrations } from "@/storage/migrations";
+import { theme } from "@/theme/tokens";
 
 SplashScreen.preventAutoHideAsync().catch(() => {});
 
@@ -18,7 +18,7 @@ function RootNavigator() {
 
   useEffect(() => {
     runMigrations(storage)
-      .catch((error) => console.error('Storage migration failed', error))
+      .catch((error) => console.error("Storage migration failed", error))
       .finally(() => setReady(true));
   }, []);
 
@@ -29,7 +29,9 @@ function RootNavigator() {
   }, [ready, initializing]);
 
   if (!ready || initializing) {
-    return <View style={{ flex: 1, backgroundColor: theme.colors.background }} />;
+    return (
+      <View style={{ flex: 1, backgroundColor: theme.colors.background }} />
+    );
   }
 
   if (!session) {
@@ -44,17 +46,13 @@ function RootNavigator() {
   return (
     <>
       <StatusBar style="light" />
-      <Stack screenOptions={{ contentStyle: { backgroundColor: theme.colors.background } }}>
+      <Stack
+        screenOptions={{
+          contentStyle: { backgroundColor: theme.colors.background },
+        }}
+      >
         <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen
-          name="profile"
-          options={{
-            headerShown: true,
-            title: 'Profile',
-            headerStyle: { backgroundColor: theme.colors.background },
-            headerTintColor: theme.colors.text,
-          }}
-        />
+        <Stack.Screen name="profile" options={{ headerShown: false }} />
       </Stack>
     </>
   );
@@ -67,4 +65,3 @@ export default function RootLayout() {
     </AuthProvider>
   );
 }
-

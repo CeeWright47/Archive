@@ -13,12 +13,15 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { ChipGroup } from "@/components/settings";
+import { pieceFitsFor, type PieceFit } from "@/storage/fitVocabulary";
 import {
     PIECE_CATEGORIES,
     imageUriFor,
     type Piece,
     type PieceCategory,
 } from "@/storage/pieces";
+import { subcategoriesFor } from "@/storage/subcategories";
 import { theme } from "@/theme/tokens";
 import { CategoryChips } from "./CategoryChips";
 
@@ -49,6 +52,15 @@ export function PieceDetailSheet({
   if (!piece || !draft) return null;
   const currentPiece = piece;
   const uri = imageUriFor(currentPiece);
+  const fitOptions = pieceFitsFor(draft.category);
+
+  // Fit auto-saves on tap; in edit mode it rides along with the rest of the draft.
+  function handleFitChange(fit: PieceFit | null) {
+    if (!draft) return;
+    const next = { ...draft, fit };
+    setDraft(next);
+    if (!editing) onSave(next);
+  }
 
   function handleSave() {
     if (!draft) return;
@@ -104,14 +116,38 @@ export function PieceDetailSheet({
                 <CategoryChips
                   categories={PIECE_CATEGORIES}
                   selected={draft.category}
-                  onSelect={(category) =>
+                  onSelect={(category) => {
+                    const next = (category ?? draft.category) as PieceCategory;
+                    const sameCategory = next === draft.category;
                     setDraft({
                       ...draft,
-                      category: (category ?? draft.category) as PieceCategory,
-                    })
+                      category: next,
+                      subcategory: sameCategory ? draft.subcategory : null,
+                      fit:
+                        sameCategory || pieceFitsFor(next) ? draft.fit : null,
+                    });
+                  }}
+                />
+              </Field>
+              <Field label="Type">
+                <CategoryChips
+                  categories={subcategoriesFor(draft.category)}
+                  selected={draft.subcategory}
+                  onSelect={(subcategory) =>
+                    setDraft({ ...draft, subcategory })
                   }
                 />
               </Field>
+              {fitOptions && (
+                <Field label="Fit">
+                  <ChipGroup
+                    mode="single"
+                    options={fitOptions}
+                    value={draft.fit as PieceFit | null}
+                    onChange={handleFitChange}
+                  />
+                </Field>
+              )}
               <Field label="Color">
                 <TextInput
                   style={styles.input}
@@ -134,9 +170,22 @@ export function PieceDetailSheet({
           ) : (
             <View style={styles.fields}>
               <Text style={styles.category}>
-                {piece.category.toUpperCase()}
+                {[piece.category, piece.subcategory]
+                  .filter(Boolean)
+                  .join(" · ")
+                  .toUpperCase()}
               </Text>
               <Text style={styles.name}>{piece.name}</Text>
+              {fitOptions && (
+                <Field label="Fit">
+                  <ChipGroup
+                    mode="single"
+                    options={fitOptions}
+                    value={draft.fit as PieceFit | null}
+                    onChange={handleFitChange}
+                  />
+                </Field>
+              )}
               <Field label="Color">
                 <Text style={styles.value}>{piece.color || "—"}</Text>
               </Field>

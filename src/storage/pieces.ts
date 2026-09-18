@@ -1,6 +1,8 @@
 import { supabase } from "@/lib/supabase";
 
+import { normalizeFit, type FitValue } from "./fitVocabulary";
 import { images } from "./images";
+import { normalizeSubcategory, type Subcategory } from "./subcategories";
 
 export const PIECE_CATEGORIES = [
   "Tops",
@@ -16,11 +18,12 @@ export interface Piece {
   id: string;
   name: string;
   category: PieceCategory;
+  subcategory: Subcategory | null;
   color: string;
   material: string;
   vibe: string;
   seasons: string[];
-  fit: string | null;
+  fit: FitValue | null;
   createdAt: number;
 }
 
@@ -28,6 +31,7 @@ interface PieceRow {
   id: string;
   name: string | null;
   category: string | null;
+  subcategory: string | null;
   color: string | null;
   material: string | null;
   vibe: string | null;
@@ -73,22 +77,32 @@ function stripDataUriPrefix(value: string): string {
 }
 
 function mapRowToPiece(row: PieceRow): Piece {
+  const category = normalizeCategory(row.category);
   return {
     id: row.id,
     name: row.name ?? "",
-    category: normalizeCategory(row.category),
+    category,
+    subcategory: normalizeSubcategory(category, row.subcategory),
     color: row.color ?? "",
     material: row.material ?? "",
     vibe: row.vibe ?? "",
     seasons: Array.isArray(row.seasons) ? row.seasons : [],
-    fit: row.fit,
+    fit: normalizeFit(row.fit),
     createdAt: Number(row.added),
   };
 }
 
-async function cacheImageIfNeeded(id: string, base64: string | null): Promise<void> {
-  if (!base64 || images.read(id)) return;
-  images.saveFromBase64(id, stripDataUriPrefix(base64));
+async function cacheImageIfNeeded(
+  id: string,
+  image: string | null,
+): Promise<void> {
+  if (!image) return;
+  if (/^https?:\/\//i.test(image)) {
+    images.setRemote(id, image);
+    return;
+  }
+  if (images.read(id)) return;
+  images.saveFromBase64(id, stripDataUriPrefix(image));
 }
 
 export const pieces = {
@@ -117,6 +131,7 @@ export const pieces = {
       user_id: user.id,
       name: piece.name,
       category: piece.category,
+      subcategory: piece.subcategory,
       color: piece.color,
       material: piece.material,
       vibe: piece.vibe,

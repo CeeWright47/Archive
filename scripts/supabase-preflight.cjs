@@ -69,6 +69,7 @@ const pieceColumns = [
   "id",
   "name",
   "category",
+  "subcategory",
   "color",
   "material",
   "vibe",
