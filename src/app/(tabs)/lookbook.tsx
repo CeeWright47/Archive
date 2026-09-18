@@ -18,6 +18,7 @@ import { AddInspirationButton } from "@/components/lookbook/AddInspirationButton
 import { AddOutfitButton } from "@/components/outfits/AddOutfitButton";
 import { OutfitCard } from "@/components/outfits/OutfitCard";
 import { OutfitDetailSheet } from "@/components/outfits/OutfitDetailSheet";
+import { PageTitle } from "@/components/PageTitle";
 import { pickImage, type PickedImage } from "@/media/pickImage";
 import { images } from "@/storage/images";
 import { imageUriForInspo, inspo, type InspoImage } from "@/storage/inspo";
@@ -198,6 +199,9 @@ export default function LookbookScreen() {
 
   return (
     <View style={styles.container}>
+      <View style={styles.titleRow}>
+        <PageTitle>Lookbook</PageTitle>
+      </View>
       <View style={styles.tabBar}>
         <TabButton
           label="Inspiration"
@@ -380,6 +384,10 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.background,
   },
+  titleRow: {
+    paddingHorizontal: theme.spacing.md,
+    paddingTop: theme.spacing.sm,
+  },
   tabBar: {
     flexDirection: "row",
     gap: theme.spacing.xs,
@@ -439,8 +447,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.lg,
   },
   emptyHeading: {
-    fontSize: theme.typography.headline.fontSize,
-    lineHeight: theme.typography.headline.lineHeight,
+    fontSize: theme.typography.subheadline.fontSize,
+    lineHeight: theme.typography.subheadline.lineHeight,
     fontWeight: theme.typography.headline.fontWeight,
     color: theme.colors.text,
     textAlign: "center",

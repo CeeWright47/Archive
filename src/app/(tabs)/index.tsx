@@ -14,6 +14,7 @@ import {
     FREE_PIECE_WARNING_AT,
     catalogPiecesFromLibrary,
 } from "@/catalog/catalogPieces";
+import { PageTitle } from "@/components/PageTitle";
 import { UpgradeSheet } from "@/components/UpgradeSheet";
 import { AddPiecesButton } from "@/components/wardrobe/AddPiecesButton";
 import { PieceCard } from "@/components/wardrobe/PieceCard";
@@ -265,6 +266,7 @@ export default function WardrobeScreen() {
             onPress={() => setSelectedPieceId(item.id)}
           />
         )}
+        ListHeaderComponent={<PageTitle>Wardrobe</PageTitle>}
         ListEmptyComponent={
           <View style={styles.empty}>
             <Text style={styles.emptyHeading}>
@@ -333,8 +335,8 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.lg,
   },
   emptyHeading: {
-    fontSize: theme.typography.headline.fontSize,
-    lineHeight: theme.typography.headline.lineHeight,
+    fontSize: theme.typography.subheadline.fontSize,
+    lineHeight: theme.typography.subheadline.lineHeight,
     fontWeight: theme.typography.headline.fontWeight,
     color: theme.colors.text,
     textAlign: "center",

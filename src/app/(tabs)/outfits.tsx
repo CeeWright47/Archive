@@ -16,6 +16,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ai } from "@/ai";
+import { PageTitle } from "@/components/PageTitle";
 import { fits, type Fit } from "@/storage/fits";
 import { imageUriFor, pieces, type Piece } from "@/storage/pieces";
 import { theme } from "@/theme/tokens";
@@ -151,7 +152,7 @@ export default function OutfitsScreen() {
           />
         }
       >
-        <Text style={styles.heading}>Build a fit</Text>
+        <PageTitle>Build a fit</PageTitle>
         <TextInput
           style={styles.occasionInput}
           value={occasion}
@@ -161,7 +162,7 @@ export default function OutfitsScreen() {
         />
 
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Lookbook</Text>
+          <Text style={styles.sectionTitle}>Saved fits</Text>
           <Text style={styles.sectionSubtitle}>
             {allFits.length} fit{allFits.length === 1 ? "" : "s"} on file. Tap a
             fit to open it.
@@ -298,13 +299,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: theme.colors.background,
-  },
-  heading: {
-    fontSize: theme.typography.title2.fontSize,
-    lineHeight: theme.typography.title2.lineHeight,
-    fontWeight: theme.typography.title2.fontWeight,
-    color: theme.colors.text,
-    fontFamily: theme.fonts.serif,
   },
   occasionInput: {
     fontSize: theme.typography.body.fontSize,

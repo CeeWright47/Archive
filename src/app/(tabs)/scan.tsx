@@ -13,6 +13,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ai, type ScanResult } from "@/ai";
 import { prepareAiImage } from "@/ai/image";
+import { PageTitle } from "@/components/PageTitle";
 import { pickImage } from "@/media/pickImage";
 import { wants, type Want } from "@/storage/wants";
 import { theme } from "@/theme/tokens";
@@ -56,12 +57,14 @@ export default function ScanScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.content}>
-        <Text style={styles.heading}>Cop or skip?</Text>
+      <View style={styles.header}>
+        <PageTitle>Cop or skip?</PageTitle>
         <Text style={styles.subtitle}>
           See something in a store or online? Snap it and get a verdict against
           your actual closet.
         </Text>
+      </View>
+      <View style={styles.content}>
         {imageUri && (
           <Image
             source={{ uri: imageUri }}
@@ -114,6 +117,11 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.background,
   },
+  header: {
+    gap: theme.spacing.xs,
+    padding: theme.spacing.lg,
+    paddingBottom: theme.spacing.none,
+  },
   content: {
     flex: 1,
     alignItems: "center",
@@ -121,19 +129,10 @@ const styles = StyleSheet.create({
     gap: theme.spacing.xs,
     paddingHorizontal: theme.spacing.lg,
   },
-  heading: {
-    fontSize: theme.typography.title1.fontSize,
-    lineHeight: theme.typography.title1.lineHeight,
-    fontWeight: theme.typography.title1.fontWeight,
-    color: theme.colors.text,
-    fontFamily: theme.fonts.serif,
-    textAlign: "center",
-  },
   subtitle: {
     fontSize: theme.typography.body.fontSize,
     lineHeight: theme.typography.body.lineHeight,
     color: theme.colors.textMuted,
-    textAlign: "center",
   },
   preview: {
     width: "100%",

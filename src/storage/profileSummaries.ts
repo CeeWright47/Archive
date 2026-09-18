@@ -47,7 +47,11 @@ export function sizesSummary(profile: UserProfile): string | undefined {
 export function styleTextSummary(prefs: Preferences): string | undefined {
   const text = prefs.styleText?.trim();
   if (!text) return undefined;
-  return text.length > 30 ? `${text.slice(0, 30).trimEnd()}…` : text;
+  if (text.length <= 30) return text;
+  const cut = text.slice(0, 30);
+  const lastSpace = cut.lastIndexOf(" ");
+  const wholeWords = lastSpace > 0 ? cut.slice(0, lastSpace) : cut;
+  return `${wholeWords.trimEnd()}…`;
 }
 
 export function fitSummary(prefs: Preferences): string | undefined {

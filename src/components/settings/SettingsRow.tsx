@@ -57,11 +57,7 @@ export function SettingsRow({
         <View style={styles.accessory}>{accessory}</View>
       ) : (
         <View style={styles.trailing}>
-          {summary ? (
-            <Text style={styles.summary} numberOfLines={1} ellipsizeMode="tail">
-              {summary}
-            </Text>
-          ) : null}
+          {summary ? <Text style={styles.summary}>{summary}</Text> : null}
           {pushes && (
             <Ionicons
               name="chevron-forward"

@@ -14,6 +14,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ai } from "@/ai";
+import { PageTitle } from "@/components/PageTitle";
 import {
     settings,
     type ClosetGapItem,
@@ -160,7 +161,7 @@ export default function InsightsScreen() {
           />
         }
       >
-        <Text style={styles.heading}>What’s missing</Text>
+        <PageTitle>What’s missing</PageTitle>
         <Text style={styles.subtitle}>
           Items spotted while you were out and gaps we noticed in your closet.
         </Text>
@@ -369,13 +370,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
     backgroundColor: theme.colors.background,
-  },
-  heading: {
-    fontSize: theme.typography.title2.fontSize,
-    lineHeight: theme.typography.title2.lineHeight,
-    fontWeight: theme.typography.title2.fontWeight,
-    color: theme.colors.text,
-    fontFamily: theme.fonts.serif,
   },
   subtitle: {
     fontSize: theme.typography.body.fontSize,

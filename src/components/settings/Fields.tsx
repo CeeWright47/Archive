@@ -6,6 +6,7 @@ import {
     View,
     type StyleProp,
     type TextInputProps,
+    type TextStyle,
     type ViewStyle,
 } from "react-native";
 
@@ -111,9 +112,10 @@ interface TextFieldProps {
   keyboardType?: TextInputProps["keyboardType"];
   returnKeyType?: TextInputProps["returnKeyType"];
   editable?: boolean;
+  style?: StyleProp<TextStyle>;
 }
 
-export function TextField(props: TextFieldProps) {
+export function TextField({ style, ...props }: TextFieldProps) {
   return (
     <TextInput
       {...props}
@@ -123,6 +125,7 @@ export function TextField(props: TextFieldProps) {
         styles.wrapper,
         styles.input,
         props.editable === false && styles.readOnly,
+        style,
       ]}
     />
   );
@@ -148,6 +151,10 @@ const styles = StyleSheet.create({
     textAlign: "left",
   },
   multiline: {
+    // Explicit width so the web textarea has a definite size on first paint
+    // instead of waiting for flex layout to resolve, which otherwise briefly
+    // renders unwrapped text right after a step transition.
+    width: "100%",
     minHeight: 180,
     paddingVertical: theme.spacing.sm,
   },

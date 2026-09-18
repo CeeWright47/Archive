@@ -453,6 +453,7 @@ function StoresStep({
         placeholder="e.g. Buck Mason"
         autoCapitalize="words"
         returnKeyType="done"
+        style={styles.storeField}
       />
     </>
   );
@@ -565,6 +566,7 @@ const styles = StyleSheet.create({
     flexWrap: "wrap",
     gap: theme.spacing.xs,
   },
+  storeField: { flexGrow: 0 },
   centerStep: {
     flex: 1,
     justifyContent: "center",

@@ -33,7 +33,9 @@ export const palette = {
   textMuted: "#A69C8C",
   accent: "#B9975B",
   accentMuted: "#8A754A",
-  danger: "#C1554A",
+  // 5.12:1 against background — lightened from #C1554A, which fell short of
+  // WCAG AA (4.18:1), while keeping the same warm terracotta hue.
+  danger: "#C96A61",
 } as const;
 
 export const fonts = {

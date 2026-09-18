@@ -171,6 +171,12 @@ export default function AssessmentScreen() {
                             Direction: {profile.direction}
                           </Text>
                         ) : null}
+                        {profile.activity === "dormant" ? (
+                          <Text style={styles.meta}>
+                            Dormant: owned, but hasn’t shown up in your
+                            logged outfits yet.
+                          </Text>
+                        ) : null}
                       </View>
                     ) : null}
                   </View>
