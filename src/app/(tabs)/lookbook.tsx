@@ -12,6 +12,8 @@ import {
     View,
 } from "react-native";
 
+import { ai } from "@/ai";
+import { prepareAiImage } from "@/ai/image";
 import { AddInspirationButton } from "@/components/lookbook/AddInspirationButton";
 import { AddOutfitButton } from "@/components/outfits/AddOutfitButton";
 import { OutfitCard } from "@/components/outfits/OutfitCard";
@@ -82,9 +84,12 @@ export default function LookbookScreen() {
       const picked = await pickImage.manyFromLibrary();
       if (picked.length === 0) return;
 
-      const added = await Promise.all(
-        picked.map((asset) => inspo.add(asset.uri)),
-      );
+      const added: InspoImage[] = [];
+      for (const asset of picked) {
+        const image = await prepareAiImage(asset.uri);
+        const result = await ai.distillInspiration(image);
+        added.push(await inspo.add(asset.uri, result.vibe, image));
+      }
       setAllInspo((current) => [...added, ...current]);
     } catch (error) {
       Alert.alert(
@@ -215,14 +220,21 @@ export default function LookbookScreen() {
             columnWrapperStyle={styles.column}
             contentContainerStyle={styles.content}
             refreshControl={
-              <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.colors.accent} />
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={handleRefresh}
+                tintColor={theme.colors.accent}
+              />
             }
             renderItem={({ item }) => <InspoCard entry={item} />}
             ListEmptyComponent={
               <Text style={styles.emptyBody}>No inspiration images yet.</Text>
             }
           />
-          <AddInspirationButton onPress={handleAddInspiration} loading={addingInspo} />
+          <AddInspirationButton
+            onPress={handleAddInspiration}
+            loading={addingInspo}
+          />
         </>
       ) : (
         <>
@@ -236,7 +248,11 @@ export default function LookbookScreen() {
             columnWrapperStyle={styles.column}
             contentContainerStyle={styles.content}
             refreshControl={
-              <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.colors.accent} />
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={handleRefresh}
+                tintColor={theme.colors.accent}
+              />
             }
             renderItem={({ item }) => (
               <OutfitCard
@@ -328,7 +344,9 @@ function TabButton({
       onPress={onPress}
       style={[styles.tabButton, active && styles.tabButtonActive]}
     >
-      <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>{label}</Text>
+      <Text style={[styles.tabLabel, active && styles.tabLabelActive]}>
+        {label}
+      </Text>
     </Pressable>
   );
 }
@@ -339,7 +357,11 @@ function InspoCard({ entry }: { entry: InspoImage }) {
     <View style={styles.inspoCard}>
       <View style={styles.inspoImageWrapper}>
         {uri ? (
-          <Image source={{ uri }} style={styles.inspoImage} contentFit="cover" />
+          <Image
+            source={{ uri }}
+            style={styles.inspoImage}
+            contentFit="cover"
+          />
         ) : (
           <View style={[styles.inspoImage, styles.inspoImageFallback]} />
         )}

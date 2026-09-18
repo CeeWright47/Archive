@@ -11,7 +11,11 @@ export default function StyleScreen() {
   const prefs = usePreferences();
   const value = prefs.value;
   return (
-    <ProfilePage loading={prefs.loading} error={prefs.loadError}>
+    <ProfilePage
+      loading={prefs.loading}
+      error={prefs.loadError}
+      saveAction={prefs}
+    >
       {value && (
         <>
           <HelperText>
@@ -22,7 +26,6 @@ export default function StyleScreen() {
           <MultilineField
             value={value.styleText ?? ""}
             onChangeText={(styleText) => prefs.update({ styleText })}
-            onBlur={prefs.flush}
             placeholder="A few words about how you like to dress..."
           />
           {prefs.error ? <ErrorText>{prefs.error}</ErrorText> : null}

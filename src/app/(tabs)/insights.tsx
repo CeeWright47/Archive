@@ -13,8 +13,17 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { settings, type ClosetGapItem, type ClosetGaps } from "@/storage/settings";
-import { imageUriForWant, wants as wantsStore, type Want } from "@/storage/wants";
+import { ai } from "@/ai";
+import {
+    settings,
+    type ClosetGapItem,
+    type ClosetGaps,
+} from "@/storage/settings";
+import {
+    imageUriForWant,
+    wants as wantsStore,
+    type Want,
+} from "@/storage/wants";
 import { theme } from "@/theme/tokens";
 
 export default function InsightsScreen() {
@@ -59,7 +68,9 @@ export default function InsightsScreen() {
       await wantsStore.setOwned(want.id, nextOwned);
     } catch {
       setAllWants((current) =>
-        current.map((w) => (w.id === want.id ? { ...w, owned: want.owned } : w)),
+        current.map((w) =>
+          w.id === want.id ? { ...w, owned: want.owned } : w,
+        ),
       );
     }
   }
@@ -100,9 +111,16 @@ export default function InsightsScreen() {
   async function handleRerunAnalysis() {
     setRerunning(true);
     try {
+      const result = await ai.analyzeWardrobeGaps();
+      setClosetGaps({
+        verdict: result.verdict,
+        items: result.items,
+        stopBuying: result.stop_buying,
+      });
+    } catch (error) {
       Alert.alert(
-        "Coming soon",
-        "Re-running your style analysis isn’t wired up yet — this needs an AI provider to be configured.",
+        "Analysis failed",
+        error instanceof Error ? error.message : "Please try again.",
       );
     } finally {
       setRerunning(false);
@@ -126,7 +144,8 @@ export default function InsightsScreen() {
   }
 
   const boughtCount = allWants.filter((want) => want.owned).length;
-  const acquiredCount = closetGaps?.items.filter((item) => item.owned).length ?? 0;
+  const acquiredCount =
+    closetGaps?.items.filter((item) => item.owned).length ?? 0;
   const gapItems = closetGaps?.items ?? [];
 
   return (
@@ -134,7 +153,11 @@ export default function InsightsScreen() {
       <ScrollView
         contentContainerStyle={styles.content}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.colors.accent} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor={theme.colors.accent}
+          />
         }
       >
         <Text style={styles.heading}>What’s missing</Text>
@@ -195,7 +218,10 @@ export default function InsightsScreen() {
       </ScrollView>
 
       <View
-        style={[styles.dock, { marginBottom: insets.bottom + theme.spacing.xs }]}
+        style={[
+          styles.dock,
+          { marginBottom: insets.bottom + theme.spacing.xs },
+        ]}
       >
         <Pressable
           accessibilityRole="button"
@@ -260,19 +286,29 @@ function WantCard({
           </Text>
         )}
         <View style={styles.cardFooter}>
-          {want.price.length > 0 && <Text style={styles.price}>{want.price}</Text>}
+          {want.price.length > 0 && (
+            <Text style={styles.price}>{want.price}</Text>
+          )}
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={want.owned ? "Mark as not bought" : "Mark as bought"}
+            accessibilityLabel={
+              want.owned ? "Mark as not bought" : "Mark as bought"
+            }
             onPress={onToggleOwned}
             style={[styles.ownedButton, want.owned && styles.ownedButtonActive]}
           >
             <Ionicons
-              name={want.owned ? "checkmark-circle" : "checkmark-circle-outline"}
+              name={
+                want.owned ? "checkmark-circle" : "checkmark-circle-outline"
+              }
               size={16}
-              color={want.owned ? theme.colors.background : theme.colors.textMuted}
+              color={
+                want.owned ? theme.colors.background : theme.colors.textMuted
+              }
             />
-            <Text style={[styles.ownedLabel, want.owned && styles.ownedLabelActive]}>
+            <Text
+              style={[styles.ownedLabel, want.owned && styles.ownedLabelActive]}
+            >
               {want.owned ? "Bought" : "Mark bought"}
             </Text>
           </Pressable>
@@ -311,7 +347,9 @@ function GapRow({
           </Text>
         )}
       </View>
-      {item.price.length > 0 && <Text style={styles.gapPrice}>{item.price}</Text>}
+      {item.price.length > 0 && (
+        <Text style={styles.gapPrice}>{item.price}</Text>
+      )}
     </Pressable>
   );
 }
@@ -527,4 +565,3 @@ const styles = StyleSheet.create({
     color: theme.colors.background,
   },
 });
-

@@ -35,7 +35,10 @@ function stripDataUriPrefix(value: string): string {
     : value;
 }
 
-async function cacheImageIfNeeded(id: string, base64: string | null): Promise<void> {
+async function cacheImageIfNeeded(
+  id: string,
+  base64: string | null,
+): Promise<void> {
   if (!base64 || images.read(id)) return;
   images.saveFromBase64(id, stripDataUriPrefix(base64));
 }
@@ -58,7 +61,11 @@ export const inspo = {
     return rows.map(mapRowToInspo);
   },
 
-  async add(sourceUri: string): Promise<InspoImage> {
+  async add(
+    sourceUri: string,
+    vibe = "",
+    imageBase64?: string,
+  ): Promise<InspoImage> {
     const {
       data: { user },
     } = await supabase.auth.getUser();
@@ -66,18 +73,22 @@ export const inspo = {
 
     const id = generateInspoId();
     const added = Date.now();
-    await images.saveFromUri(id, sourceUri);
-    const imageBase64 = images.readBase64(id);
+    if (imageBase64) {
+      images.saveFromBase64(id, imageBase64);
+    } else {
+      await images.saveFromUri(id, sourceUri);
+    }
+    const storedImage = imageBase64 ?? images.readBase64(id);
 
     const { error } = await supabase.from("inspo").insert({
       id,
       user_id: user.id,
-      vibe: "",
+      vibe,
       added,
-      ...(imageBase64 !== null ? { image: imageBase64 } : {}),
+      ...(storedImage !== null ? { image: storedImage } : {}),
     });
     if (error) throw error;
 
-    return { id, vibe: "", added };
+    return { id, vibe, added };
   },
 };

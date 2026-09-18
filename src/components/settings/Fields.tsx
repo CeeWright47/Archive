@@ -75,7 +75,7 @@ export function NumericField({
 interface MultilineFieldProps {
   value: string;
   onChangeText: (value: string) => void;
-  onBlur: () => void;
+  onBlur?: () => void;
   placeholder?: string;
 }
 

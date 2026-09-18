@@ -13,7 +13,11 @@ export default function ClimateScreen() {
   const prefs = usePreferences();
   const value = prefs.value;
   return (
-    <ProfilePage loading={prefs.loading} error={prefs.loadError}>
+    <ProfilePage
+      loading={prefs.loading}
+      error={prefs.loadError}
+      saveAction={prefs}
+    >
       {value && (
         <>
           <HelperText>

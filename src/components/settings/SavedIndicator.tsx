@@ -1,7 +1,7 @@
 import { useEffect, useRef } from "react";
 import { Animated, StyleSheet } from "react-native";
 
-import { useSaveStatus } from "@/hooks/useAutosave";
+import { useSaveStatus } from "@/hooks/useProfileSave";
 import { theme } from "@/theme/tokens";
 
 const FADE_MS = 200;

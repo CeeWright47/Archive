@@ -3,6 +3,7 @@ import {
     Animated,
     Pressable,
     StyleSheet,
+    Text,
     TextInput,
     View,
     type LayoutChangeEvent,
@@ -27,6 +28,7 @@ interface WardrobeHeaderProps {
   };
   onSortPress: () => void;
   filterActive?: boolean;
+  freeRemaining?: number;
   translateY: Animated.AnimatedInterpolation<number> | Animated.Value;
   onLayout: (event: LayoutChangeEvent) => void;
 }
@@ -43,6 +45,7 @@ export function WardrobeHeader({
   subcategoryCounts,
   onSortPress,
   filterActive = false,
+  freeRemaining,
   translateY,
   onLayout,
 }: WardrobeHeaderProps) {
@@ -114,6 +117,14 @@ export function WardrobeHeader({
         counts={categoryCounts}
       />
 
+      {freeRemaining !== undefined ? (
+        <Text style={styles.remaining}>
+          {freeRemaining === 0
+            ? "Free limit reached"
+            : `${freeRemaining} free piece${freeRemaining === 1 ? "" : "s"} remaining`}
+        </Text>
+      ) : null}
+
       {category && (
         <CategoryChips
           categories={subcategoriesFor(category)}
@@ -182,5 +193,14 @@ const styles = StyleSheet.create({
     height: 8,
     borderRadius: theme.radii.pill,
     backgroundColor: theme.colors.accent,
+  },
+  remaining: {
+    paddingHorizontal: theme.spacing.md,
+    paddingBottom: theme.spacing.xs,
+    fontFamily: theme.fonts.mono,
+    fontSize: theme.typography.caption1.fontSize,
+    letterSpacing: theme.tracking.caption,
+    color: theme.colors.accent,
+    textAlign: "right",
   },
 });

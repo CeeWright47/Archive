@@ -8,26 +8,26 @@ import {
     type LayoutChangeEvent,
 } from "react-native";
 
+import { PieceLimitError } from "@/ai";
+import {
+    FREE_PIECE_LIMIT,
+    FREE_PIECE_WARNING_AT,
+    catalogPiecesFromLibrary,
+} from "@/catalog/catalogPieces";
+import { UpgradeSheet } from "@/components/UpgradeSheet";
 import { AddPiecesButton } from "@/components/wardrobe/AddPiecesButton";
 import { PieceCard } from "@/components/wardrobe/PieceCard";
 import { PieceDetailSheet } from "@/components/wardrobe/PieceDetailSheet";
 import { SortSheet } from "@/components/wardrobe/SortSheet";
 import { WardrobeHeader } from "@/components/wardrobe/WardrobeHeader";
-import { pickImage } from "@/media/pickImage";
 import {
     ALL_PIECE_FITS,
     pieceFitsFor,
     type PieceFit,
 } from "@/storage/fitVocabulary";
-import { images } from "@/storage/images";
 import { outfits } from "@/storage/outfits";
-import {
-    PIECE_CATEGORIES,
-    generatePieceId,
-    pieces,
-    type Piece,
-    type PieceCategory,
-} from "@/storage/pieces";
+import { pieces, type Piece, type PieceCategory } from "@/storage/pieces";
+import { profileStore, type Plan } from "@/storage/profile";
 import type { Subcategory } from "@/storage/subcategories";
 import {
     MIN_OUTFITS_FOR_WORN_SORT,
@@ -38,8 +38,6 @@ import {
     type WardrobeSort,
 } from "@/storage/wardrobeSort";
 import { theme } from "@/theme/tokens";
-
-const DEFAULT_CATEGORY: PieceCategory = PIECE_CATEGORIES[0];
 
 function countBy<K extends string>(
   list: Piece[],
@@ -84,12 +82,15 @@ export default function WardrobeScreen() {
   const [selectedPieceId, setSelectedPieceId] = useState<string | null>(null);
   const [newPieceId, setNewPieceId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  const [plan, setPlan] = useState<Plan>("free");
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
 
   const [headerHeight, setHeaderHeight] = useState(0);
   const scrollY = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     pieces.list().then(setAllPieces);
+    profileStore.getUserProfile().then((profile) => setPlan(profile.plan));
     wardrobeSort.get().then(setSort);
     outfits
       .list()
@@ -134,36 +135,24 @@ export default function WardrobeScreen() {
   );
 
   const handleAddPieces = useCallback(async () => {
+    if (plan === "free" && allPieces.length >= FREE_PIECE_LIMIT) {
+      setUpgradeOpen(true);
+      return;
+    }
     setAdding(true);
     try {
-      const picked = await pickImage.manyFromLibrary();
-      if (picked.length === 0) return;
-
-      const created: Piece[] = picked.map((asset, index) => {
-        const id = generatePieceId();
-        images.saveFromUri(id, asset.uri);
-        return {
-          id,
-          name: "New piece",
-          category: DEFAULT_CATEGORY,
-          subcategory: null,
-          color: "",
-          material: "",
-          vibe: "",
-          seasons: [],
-          fit: null,
-          createdAt: Date.now() + index,
-        };
-      });
-
-      for (const piece of created) {
-        await pieces.save(piece);
+      const created = await catalogPiecesFromLibrary((piece) =>
+        setAllPieces((current) => [...current, piece]),
+      );
+      if (created[0]) {
+        setNewPieceId(created[0].id);
+        setSelectedPieceId(created[0].id);
       }
-
-      setAllPieces((current) => [...current, ...created]);
-      setNewPieceId(created[0].id);
-      setSelectedPieceId(created[0].id);
     } catch (error) {
+      if (error instanceof PieceLimitError) {
+        setUpgradeOpen(true);
+        return;
+      }
       Alert.alert(
         "Couldn’t add photos",
         error instanceof Error ? error.message : "Please try again.",
@@ -171,7 +160,7 @@ export default function WardrobeScreen() {
     } finally {
       setAdding(false);
     }
-  }, []);
+  }, [allPieces.length, plan]);
 
   const handleSavePiece = useCallback(async (updated: Piece) => {
     await pieces.save(updated);
@@ -243,6 +232,11 @@ export default function WardrobeScreen() {
         subcategoryCounts={subcategoryCounts}
         onSortPress={() => setSortOpen(true)}
         filterActive={fitFilter !== null}
+        freeRemaining={
+          plan === "free" && allPieces.length >= FREE_PIECE_WARNING_AT
+            ? Math.max(FREE_PIECE_LIMIT - allPieces.length, 0)
+            : undefined
+        }
         translateY={headerTranslateY}
         onLayout={handleHeaderLayout}
       />
@@ -300,6 +294,7 @@ export default function WardrobeScreen() {
 
       <PieceDetailSheet
         piece={selectedPiece}
+        allPieces={allPieces}
         startInEditMode={selectedPieceId === newPieceId}
         onClose={() => {
           setSelectedPieceId(null);
@@ -307,6 +302,10 @@ export default function WardrobeScreen() {
         }}
         onSave={handleSavePiece}
         onDelete={handleDeletePiece}
+      />
+      <UpgradeSheet
+        visible={upgradeOpen}
+        onClose={() => setUpgradeOpen(false)}
       />
     </View>
   );

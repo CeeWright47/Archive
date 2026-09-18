@@ -1,4 +1,5 @@
 import { useRouter, type Href } from "expo-router";
+import { useState } from "react";
 import {
     ActivityIndicator,
     Pressable,
@@ -9,8 +10,10 @@ import {
     View,
 } from "react-native";
 
+import { UpgradeSheet } from "@/components/UpgradeSheet";
 import {
     ErrorText,
+    ProfileSaveDock,
     SectionHeader,
     SettingsGroup,
     SettingsRow,
@@ -49,6 +52,7 @@ export default function ProfileIndexScreen() {
   const prefs = usePreferences();
   const assessment = useLatestAssessment();
   const legacy = useLegacyAssessment();
+  const [upgradeOpen, setUpgradeOpen] = useState(false);
 
   const loading = profile.loading || prefs.loading;
   const p = profile.value;
@@ -69,146 +73,169 @@ export default function ProfileIndexScreen() {
   }
 
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.content}>
-      <SectionHeader title="You" />
-      <SettingsGroup>
-        <SettingsRow
-          label="Account"
-          description="Name, email, mobile"
-          summary={accountSummary(p)}
-          onPress={go("/profile/account")}
-        />
-        <SettingsRow
-          label="About you"
-          description="Height, weight, build"
-          summary={aboutSummary(p, s)}
-          onPress={go("/profile/about")}
-        />
-        <SettingsRow
-          label="Sizes"
-          description="Tops, bottoms, shoes, outerwear"
-          summary={sizesSummary(p)}
-          onPress={go("/profile/sizes")}
-        />
-      </SettingsGroup>
+    <View style={styles.container}>
+      <ScrollView
+        style={styles.container}
+        contentContainerStyle={styles.content}
+      >
+        <SectionHeader title="You" />
+        <SettingsGroup>
+          <SettingsRow
+            label="Account"
+            description="Name, email, mobile"
+            summary={accountSummary(p)}
+            onPress={go("/profile/account")}
+          />
+          <SettingsRow
+            label="About you"
+            description="Height, weight, build"
+            summary={aboutSummary(p, s)}
+            onPress={go("/profile/about")}
+          />
+          <SettingsRow
+            label="Sizes"
+            description="Tops, bottoms, shoes, outerwear"
+            summary={sizesSummary(p)}
+            onPress={go("/profile/sizes")}
+          />
+        </SettingsGroup>
 
-      <SectionHeader title="Style" />
-      <SettingsGroup>
-        <SettingsRow
-          label="My Style"
-          description="In your own words"
-          summary={styleTextSummary(s)}
-          onPress={go("/profile/style")}
-        />
-        <SettingsRow
-          label="Fit preferences"
-          description="Per category, cuffing, length"
-          summary={fitSummary(s)}
-          onPress={go("/profile/fit")}
-        />
-        <SettingsRow
-          label="Colors"
-          description="Worn most and avoided"
-          summary={colorsSummary(s)}
-          onPress={go("/profile/colors")}
-        />
-        <SettingsRow
-          label="Occasions"
-          description="What you dress for"
-          summary={countSummary(s.occasions)}
-          onPress={go("/profile/occasions")}
-        />
-        <SettingsRow
-          label="Style assessment"
-          description="Your style profiles"
-          summary={assessmentSummary(assessment.data, legacy.data)}
-          onPress={go("/profile/assessment")}
-        />
-      </SettingsGroup>
+        <SectionHeader title="Style" />
+        <SettingsGroup>
+          <SettingsRow
+            label="My Style"
+            description="In your own words"
+            summary={styleTextSummary(s)}
+            onPress={go("/profile/style")}
+          />
+          <SettingsRow
+            label="Fit preferences"
+            description="Per category, cuffing, length"
+            summary={fitSummary(s)}
+            onPress={go("/profile/fit")}
+          />
+          <SettingsRow
+            label="Colors"
+            description="Worn most and avoided"
+            summary={colorsSummary(s)}
+            onPress={go("/profile/colors")}
+          />
+          <SettingsRow
+            label="Occasions"
+            description="What you dress for"
+            summary={countSummary(s.occasions)}
+            onPress={go("/profile/occasions")}
+          />
+          <SettingsRow
+            label="Style assessment"
+            description="Your style profiles"
+            summary={assessmentSummary(assessment.data, legacy.data)}
+            onPress={go("/profile/assessment")}
+          />
+        </SettingsGroup>
 
-      <SectionHeader title="Shopping" />
-      <SettingsGroup>
-        <SettingsRow
-          label="Stores"
-          description="Where you shop"
-          summary={countSummary(s.stores)}
-          onPress={go("/profile/stores")}
-        />
-        <SettingsRow
-          label="Budget"
-          description="Typical spend per category"
-          summary={budgetSummary(s)}
-          onPress={go("/profile/budget")}
-        />
-      </SettingsGroup>
+        <SectionHeader title="Shopping" />
+        <SettingsGroup>
+          <SettingsRow
+            label="Stores"
+            description="Where you shop"
+            summary={countSummary(s.stores)}
+            onPress={go("/profile/stores")}
+          />
+          <SettingsRow
+            label="Budget"
+            description="Typical spend per category"
+            summary={budgetSummary(s)}
+            onPress={go("/profile/budget")}
+          />
+        </SettingsGroup>
 
-      <SectionHeader title="App" />
-      <SettingsGroup>
-        <SettingsRow
-          label="Auto-tag outfits"
-          accessory={
-            <Switch
-              value={s.autoTag}
-              onValueChange={(autoTag) => prefs.update({ autoTag })}
-              trackColor={{
-                true: theme.colors.accent,
-                false: theme.colors.border,
-              }}
-              thumbColor={theme.colors.text}
-            />
-          }
-        />
-        <SettingsRow
-          label="Run assessment automatically"
-          accessory={
-            <Switch
-              value={s.autoAssess}
-              onValueChange={(autoAssess) => prefs.update({ autoAssess })}
-              trackColor={{
-                true: theme.colors.accent,
-                false: theme.colors.border,
-              }}
-              thumbColor={theme.colors.text}
-            />
-          }
-        />
-        <SettingsRow
-          label="Units"
-          accessory={
-            <UnitsPicker
-              value={s.units}
-              onChange={(units) => prefs.update({ units })}
-            />
-          }
-        />
-        <SettingsRow
-          label="Climate"
-          description="Affects seasonal suggestions"
-          summary={climateSummary(s)}
-          onPress={go("/profile/climate")}
-        />
-      </SettingsGroup>
+        <SectionHeader title="App" />
+        <SettingsGroup>
+          <SettingsRow
+            label="Auto-tag outfits"
+            accessory={
+              <Switch
+                value={s.autoTag}
+                onValueChange={(autoTag) => prefs.update({ autoTag })}
+                trackColor={{
+                  true: theme.colors.accent,
+                  false: theme.colors.border,
+                }}
+                thumbColor={theme.colors.text}
+              />
+            }
+          />
+          <SettingsRow
+            label="Run assessment automatically"
+            accessory={
+              <Switch
+                value={s.autoAssess}
+                onValueChange={(autoAssess) => prefs.update({ autoAssess })}
+                trackColor={{
+                  true: theme.colors.accent,
+                  false: theme.colors.border,
+                }}
+                thumbColor={theme.colors.text}
+              />
+            }
+          />
+          <SettingsRow
+            label="Units"
+            accessory={
+              <UnitsPicker
+                value={s.units}
+                onChange={(units) => prefs.update({ units })}
+              />
+            }
+          />
+          <SettingsRow
+            label="Climate"
+            description="Affects seasonal suggestions"
+            summary={climateSummary(s)}
+            onPress={go("/profile/climate")}
+          />
+          <SettingsRow
+            label="Upgrade"
+            description="More pieces, assessments, and insights"
+            summary={
+              p.plan === "free" ? "Free" : p.plan === "pro" ? "Pro" : "Lifetime"
+            }
+            onPress={() => setUpgradeOpen(true)}
+          />
+          <SettingsRow
+            label="Re-run onboarding"
+            description="Review the setup flow"
+            onPress={go("/onboarding")}
+          />
+        </SettingsGroup>
 
-      <SectionHeader title="Privacy" />
-      <SettingsGroup>
-        <SettingsRow
-          label="Where photos are stored"
-          onPress={go("/profile/privacy/photos")}
-        />
-        <SettingsRow
-          label="Delete my account"
-          description="Available soon"
-          destructive
-          disabled
-        />
-      </SettingsGroup>
+        <SectionHeader title="Privacy" />
+        <SettingsGroup>
+          <SettingsRow
+            label="Where photos are stored"
+            onPress={go("/profile/privacy/photos")}
+          />
+          <SettingsRow
+            label="Delete my account"
+            description="Available soon"
+            destructive
+            disabled
+          />
+        </SettingsGroup>
 
-      {prefs.error ? (
-        <View style={styles.inlineError}>
-          <ErrorText>{prefs.error}</ErrorText>
-        </View>
-      ) : null}
-    </ScrollView>
+        {prefs.error ? (
+          <View style={styles.inlineError}>
+            <ErrorText>{prefs.error}</ErrorText>
+          </View>
+        ) : null}
+      </ScrollView>
+      <ProfileSaveDock action={prefs} />
+      <UpgradeSheet
+        visible={upgradeOpen}
+        onClose={() => setUpgradeOpen(false)}
+      />
+    </View>
   );
 }
 
@@ -249,7 +276,7 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.background,
   },
   content: {
-    paddingBottom: theme.spacing.xxxl,
+    paddingBottom: 96,
   },
   center: {
     flex: 1,

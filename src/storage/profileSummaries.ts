@@ -6,27 +6,28 @@ import type {
 import type { StyleAssessment as LegacyAssessment } from "./settings";
 import { formatHeight, formatWeight } from "./units";
 
-const NOT_SET = "Not set";
-
 function join(parts: (string | null | undefined)[]): string | null {
   const kept = parts.filter((p): p is string => Boolean(p));
   return kept.length > 0 ? kept.join(" · ") : null;
 }
 
-export function accountSummary(profile: UserProfile): string {
-  return profile.name ?? NOT_SET;
+export function accountSummary(profile: UserProfile): string | undefined {
+  return profile.name ?? undefined;
 }
 
-export function aboutSummary(profile: UserProfile, prefs: Preferences): string {
+export function aboutSummary(
+  profile: UserProfile,
+  prefs: Preferences,
+): string | undefined {
   return (
     join([
       formatHeight(profile.heightCm, prefs.units),
       formatWeight(profile.weightKg, prefs.units),
-    ]) ?? NOT_SET
+    ]) ?? undefined
   );
 }
 
-export function sizesSummary(profile: UserProfile): string {
+export function sizesSummary(profile: UserProfile): string | undefined {
   const { tops, bottoms, shoes } = profile.sizes;
   const waistInseam =
     bottoms.waist !== null && bottoms.inseam !== null
@@ -39,17 +40,17 @@ export function sizesSummary(profile: UserProfile): string {
       tops.letter,
       waistInseam,
       shoes.size !== null ? `${shoes.size}` : null,
-    ]) ?? NOT_SET
+    ]) ?? undefined
   );
 }
 
-export function styleTextSummary(prefs: Preferences): string {
+export function styleTextSummary(prefs: Preferences): string | undefined {
   const text = prefs.styleText?.trim();
-  if (!text) return NOT_SET;
+  if (!text) return undefined;
   return text.length > 30 ? `${text.slice(0, 30).trimEnd()}…` : text;
 }
 
-export function fitSummary(prefs: Preferences): string {
+export function fitSummary(prefs: Preferences): string | undefined {
   const { tops, bottoms, cuffing } = prefs.fit;
   return (
     join([
@@ -58,18 +59,18 @@ export function fitSummary(prefs: Preferences): string {
         ? `${bottoms[0]} bottoms`
         : null,
       cuffing && cuffing !== "No preference" ? cuffing : null,
-    ]) ?? NOT_SET
+    ]) ?? undefined
   );
 }
 
-export function colorsSummary(prefs: Preferences): string {
+export function colorsSummary(prefs: Preferences): string | undefined {
   const { worn, avoid } = prefs.colors;
-  if (worn.length === 0 && avoid.length === 0) return NOT_SET;
+  if (worn.length === 0 && avoid.length === 0) return undefined;
   return `${worn.length} worn · ${avoid.length} avoided`;
 }
 
-export function countSummary(items: string[]): string {
-  return items.length === 0 ? NOT_SET : `${items.length} selected`;
+export function countSummary(items: string[]): string | undefined {
+  return items.length === 0 ? undefined : `${items.length} selected`;
 }
 
 export function assessmentSummary(
@@ -86,9 +87,9 @@ export function assessmentSummary(
   return "Not run yet";
 }
 
-export function budgetSummary(prefs: Preferences): string {
+export function budgetSummary(prefs: Preferences): string | undefined {
   const tiers = Object.values(prefs.budget);
-  if (tiers.length === 0) return NOT_SET;
+  if (tiers.length === 0) return undefined;
   const sorted = [...tiers].sort((a, b) => a.length - b.length);
   const low = sorted[0];
   const high = sorted[sorted.length - 1];
@@ -99,6 +100,6 @@ export function unitsSummary(prefs: Preferences): string {
   return prefs.units === "metric" ? "Metric" : "Imperial";
 }
 
-export function climateSummary(prefs: Preferences): string {
-  return join([prefs.climate.zone, prefs.climate.city]) ?? NOT_SET;
+export function climateSummary(prefs: Preferences): string | undefined {
+  return join([prefs.climate.zone, prefs.climate.city]) ?? undefined;
 }

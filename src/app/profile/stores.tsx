@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { ActivityIndicator, ScrollView, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 
 import {
     ErrorText,
     FieldLabel,
     HelperText,
+    ProfilePage,
     StoreChip,
     TextField,
 } from "@/components/settings";
@@ -24,15 +25,9 @@ export default function StoresScreen() {
 
   if (prefs.loading || !s) {
     return (
-      <View style={styles.center}>
-        {prefs.loading ? (
-          <ActivityIndicator color={theme.colors.accent} />
-        ) : (
-          <ErrorText>
-            {prefs.loadError ?? "Couldn’t load preferences."}
-          </ErrorText>
-        )}
-      </View>
+      <ProfilePage loading={prefs.loading} error={prefs.loadError}>
+        {null}
+      </ProfilePage>
     );
   }
 
@@ -71,10 +66,10 @@ export default function StoresScreen() {
   }
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      keyboardShouldPersistTaps="handled"
+    <ProfilePage
+      loading={prefs.loading}
+      error={prefs.loadError}
+      saveAction={prefs}
     >
       <HelperText>
         Where you actually shop. This steers suggestions toward what you can
@@ -115,27 +110,11 @@ export default function StoresScreen() {
       </View>
 
       {prefs.error ? <ErrorText>{prefs.error}</ErrorText> : null}
-    </ScrollView>
+    </ProfilePage>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
-  },
-  content: {
-    padding: theme.spacing.md,
-    paddingBottom: theme.spacing.xxxl,
-    gap: theme.spacing.lg,
-    alignItems: "stretch",
-  },
-  center: {
-    flex: 1,
-    padding: theme.spacing.md,
-    justifyContent: "center",
-    alignItems: "flex-start",
-  },
   chips: {
     flexDirection: "row",
     flexWrap: "wrap",

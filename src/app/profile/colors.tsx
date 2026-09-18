@@ -1,11 +1,12 @@
 import { useState } from "react";
-import { ActivityIndicator, ScrollView, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 
 import {
     ChipGroup,
     ErrorText,
     FieldLabel,
     HelperText,
+    ProfilePage,
     TextField,
     type TriState,
 } from "@/components/settings";
@@ -66,15 +67,9 @@ export default function ColorsScreen() {
 
   if (prefs.loading || !s) {
     return (
-      <View style={styles.center}>
-        {prefs.loading ? (
-          <ActivityIndicator color={theme.colors.accent} />
-        ) : (
-          <ErrorText>
-            {prefs.loadError ?? "Couldn’t load preferences."}
-          </ErrorText>
-        )}
-      </View>
+      <ProfilePage loading={prefs.loading} error={prefs.loadError}>
+        {null}
+      </ProfilePage>
     );
   }
 
@@ -114,10 +109,10 @@ export default function ColorsScreen() {
   }
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      keyboardShouldPersistTaps="handled"
+    <ProfilePage
+      loading={prefs.loading}
+      error={prefs.loadError}
+      saveAction={prefs}
     >
       <HelperText>Tap once for worn most, twice to avoid.</HelperText>
 
@@ -148,27 +143,11 @@ export default function ColorsScreen() {
       </View>
 
       {prefs.error ? <ErrorText>{prefs.error}</ErrorText> : null}
-    </ScrollView>
+    </ProfilePage>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
-  },
-  content: {
-    padding: theme.spacing.md,
-    paddingBottom: theme.spacing.xxxl,
-    gap: theme.spacing.lg,
-    alignItems: "stretch",
-  },
-  center: {
-    flex: 1,
-    padding: theme.spacing.md,
-    justifyContent: "center",
-    alignItems: "flex-start",
-  },
   field: {
     alignItems: "stretch",
   },

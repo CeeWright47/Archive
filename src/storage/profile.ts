@@ -59,6 +59,7 @@ export interface Sizes {
 }
 
 export interface UserProfile {
+  plan: Plan;
   name: string | null;
   mobile: string | null;
   heightCm: number | null;
@@ -92,7 +93,11 @@ export interface Preferences {
   climate: { zone: ClimateZone | null; city: string | null };
   autoTag: boolean;
   autoAssess: boolean;
+  onboardingCompleted: boolean;
+  assessmentPaywallShown: boolean;
 }
+
+export type Plan = "free" | "pro" | "lifetime";
 
 export interface StyleProfile {
   id: string;
@@ -122,6 +127,7 @@ export const EMPTY_SIZES: Sizes = {
 };
 
 export const EMPTY_PROFILE: UserProfile = {
+  plan: "free",
   name: null,
   mobile: null,
   heightCm: null,
@@ -142,6 +148,8 @@ export const EMPTY_PREFERENCES: Preferences = {
   climate: { zone: null, city: null },
   autoTag: true,
   autoAssess: false,
+  onboardingCompleted: false,
+  assessmentPaywallShown: false,
 };
 
 // ---------- Row shapes & validation ----------
@@ -185,6 +193,7 @@ function manyOf<T extends string>(value: unknown, options: readonly T[]): T[] {
 }
 
 interface UserProfileRow {
+  plan: string | null;
   name: string | null;
   mobile: string | null;
   body_info: unknown;
@@ -199,6 +208,7 @@ function mapUserProfile(row: UserProfileRow): UserProfile {
   const shoes = obj(sizes.shoes);
   const outerwear = obj(sizes.outerwear);
   return {
+    plan: oneOf(row.plan, ["free", "pro", "lifetime"] as const) ?? "free",
     name: row.name,
     mobile: row.mobile,
     heightCm: num(body.height_cm),
@@ -268,6 +278,14 @@ function mapPreferences(row: PreferencesRow): Preferences {
       typeof app.auto_assess === "boolean"
         ? app.auto_assess
         : EMPTY_PREFERENCES.autoAssess,
+    onboardingCompleted:
+      typeof app.onboarding_completed === "boolean"
+        ? app.onboarding_completed
+        : EMPTY_PREFERENCES.onboardingCompleted,
+    assessmentPaywallShown:
+      typeof app.assessment_paywall_shown === "boolean"
+        ? app.assessment_paywall_shown
+        : EMPTY_PREFERENCES.assessmentPaywallShown,
   };
 }
 
@@ -334,7 +352,7 @@ export const profileStore = {
   async getUserProfile(): Promise<UserProfile> {
     const { data, error } = await supabase
       .from("user_profile")
-      .select("name, mobile, body_info, sizes")
+      .select("plan, name, mobile, body_info, sizes")
       .maybeSingle();
     if (error) throw error;
     return data ? mapUserProfile(data as UserProfileRow) : EMPTY_PROFILE;
@@ -344,6 +362,7 @@ export const profileStore = {
     const userId = await requireUserId();
     const { error } = await supabase.from("user_profile").upsert({
       user_id: userId,
+      plan: profile.plan,
       name: profile.name,
       mobile: profile.mobile,
       body_info: {
@@ -383,6 +402,8 @@ export const profileStore = {
         units: prefs.units,
         auto_tag: prefs.autoTag,
         auto_assess: prefs.autoAssess,
+        onboarding_completed: prefs.onboardingCompleted,
+        assessment_paywall_shown: prefs.assessmentPaywallShown,
       },
       climate: prefs.climate,
       updated_at: new Date().toISOString(),

@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { useEffect, useState, type ReactNode } from "react";
 import {
+    ActivityIndicator,
     Alert,
     Modal,
     Pressable,
@@ -13,6 +14,7 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { ai, type PairingResult } from "@/ai";
 import { ChipGroup } from "@/components/settings";
 import { pieceFitsFor, type PieceFit } from "@/storage/fitVocabulary";
 import {
@@ -27,6 +29,7 @@ import { CategoryChips } from "./CategoryChips";
 
 interface PieceDetailSheetProps {
   piece: Piece | null;
+  allPieces: Piece[];
   startInEditMode?: boolean;
   onClose: () => void;
   onSave: (piece: Piece) => Promise<void> | void;
@@ -35,6 +38,7 @@ interface PieceDetailSheetProps {
 
 export function PieceDetailSheet({
   piece,
+  allPieces,
   startInEditMode = false,
   onClose,
   onSave,
@@ -43,10 +47,13 @@ export function PieceDetailSheet({
   const insets = useSafeAreaInsets();
   const [editing, setEditing] = useState(startInEditMode);
   const [draft, setDraft] = useState(piece);
+  const [pairing, setPairing] = useState<PairingResult | null>(null);
+  const [pairingBusy, setPairingBusy] = useState(false);
 
   useEffect(() => {
     setDraft(piece);
     setEditing(startInEditMode);
+    setPairing(null);
   }, [piece, startInEditMode]);
 
   if (!piece || !draft) return null;
@@ -77,6 +84,20 @@ export function PieceDetailSheet({
         onPress: () => onDelete(currentPiece.id),
       },
     ]);
+  }
+
+  async function handlePairing() {
+    setPairingBusy(true);
+    try {
+      setPairing(await ai.suggestPairings(currentPiece.id));
+    } catch (error) {
+      Alert.alert(
+        "Couldn’t find pairings",
+        error instanceof Error ? error.message : "Please try again.",
+      );
+    } finally {
+      setPairingBusy(false);
+    }
   }
 
   return (
@@ -192,6 +213,43 @@ export function PieceDetailSheet({
               <Field label="Material">
                 <Text style={styles.value}>{piece.material || "—"}</Text>
               </Field>
+            </View>
+          )}
+
+          {!editing && (
+            <View style={styles.pairing}>
+              <Pressable
+                accessibilityRole="button"
+                disabled={pairingBusy}
+                onPress={handlePairing}
+                style={styles.pairingButton}
+              >
+                {pairingBusy ? (
+                  <ActivityIndicator color={theme.colors.accent} />
+                ) : (
+                  <Ionicons
+                    name="git-compare-outline"
+                    size={18}
+                    color={theme.colors.accent}
+                  />
+                )}
+                <Text style={styles.pairingButtonLabel}>
+                  What it pairs with
+                </Text>
+              </Pressable>
+              {pairing && (
+                <View style={styles.pairingResult}>
+                  <Text style={styles.pairingSentence}>{pairing.sentence}</Text>
+                  <Text style={styles.pairingNames}>
+                    {allPieces
+                      .filter((candidate) =>
+                        pairing.pair_ids.includes(candidate.id),
+                      )
+                      .map((candidate) => candidate.name)
+                      .join(" · ")}
+                  </Text>
+                </View>
+              )}
             </View>
           )}
 
@@ -360,6 +418,40 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: theme.spacing.sm,
     paddingBottom: theme.spacing.md,
+  },
+  pairing: {
+    gap: theme.spacing.xs,
+  },
+  pairingButton: {
+    minHeight: 44,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: theme.spacing.xs,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: theme.colors.accent,
+    borderRadius: theme.radii.md,
+  },
+  pairingButtonLabel: {
+    color: theme.colors.accent,
+    fontSize: theme.typography.headline.fontSize,
+    fontWeight: theme.typography.headline.fontWeight,
+  },
+  pairingResult: {
+    gap: theme.spacing.xxs,
+    padding: theme.spacing.sm,
+    borderRadius: theme.radii.md,
+    backgroundColor: theme.colors.background,
+  },
+  pairingSentence: {
+    color: theme.colors.text,
+    fontSize: theme.typography.body.fontSize,
+    lineHeight: theme.typography.body.lineHeight,
+  },
+  pairingNames: {
+    color: theme.colors.textMuted,
+    fontSize: theme.typography.footnote.fontSize,
+    lineHeight: theme.typography.footnote.lineHeight,
   },
   actionButton: {
     flex: 1,

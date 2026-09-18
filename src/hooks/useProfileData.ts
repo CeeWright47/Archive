@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 
-import { useAutosave, type Autosave } from "@/hooks/useAutosave";
+import { useDraftSave, type DraftSave } from "@/hooks/useProfileSave";
 import {
     profileStore,
     type Preferences,
@@ -52,7 +52,7 @@ const loadAssessment = () => profileStore.getLatestAssessment();
 const loadLegacyAssessment = () =>
   settings.getProfileSettings().then((s) => s.styleAssessment);
 
-export function useUserProfile(): Autosave<UserProfile> & {
+export function useUserProfile(): DraftSave<UserProfile> & {
   loading: boolean;
   loadError: string | null;
 } {
@@ -61,11 +61,11 @@ export function useUserProfile(): Autosave<UserProfile> & {
     (next: UserProfile) => profileStore.saveUserProfile(next),
     [],
   );
-  const autosave = useAutosave(data, write);
-  return { ...autosave, loading, loadError: error };
+  const draft = useDraftSave(data, write);
+  return { ...draft, loading, loadError: error };
 }
 
-export function usePreferences(): Autosave<Preferences> & {
+export function usePreferences(): DraftSave<Preferences> & {
   loading: boolean;
   loadError: string | null;
 } {
@@ -74,8 +74,8 @@ export function usePreferences(): Autosave<Preferences> & {
     (next: Preferences) => profileStore.savePreferences(next),
     [],
   );
-  const autosave = useAutosave(data, write);
-  return { ...autosave, loading, loadError: error };
+  const draft = useDraftSave(data, write);
+  return { ...draft, loading, loadError: error };
 }
 
 export function useLatestAssessment(): LoadState<StyleAssessmentRecord | null> {

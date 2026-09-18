@@ -1,4 +1,4 @@
-import { ActivityIndicator, ScrollView, StyleSheet, View } from "react-native";
+import { StyleSheet, View } from "react-native";
 
 import {
     ChipGroup,
@@ -6,6 +6,7 @@ import {
     FieldLabel,
     HelperText,
     NumericField,
+    ProfilePage,
 } from "@/components/settings";
 import { usePreferences, useUserProfile } from "@/hooks/useProfileData";
 import { BUILD_OPTIONS } from "@/storage/profile";
@@ -25,19 +26,18 @@ export default function AboutYouScreen() {
   const prefs = usePreferences();
   const p = profile.value;
 
-  if (profile.loading || prefs.loading || !p) {
+  if (profile.loading || prefs.loading || !p || !prefs.value) {
     return (
-      <View style={styles.center}>
-        {profile.loading || prefs.loading ? (
-          <ActivityIndicator color={theme.colors.accent} />
-        ) : (
-          <ErrorText>{profile.loadError ?? "Couldn’t load profile."}</ErrorText>
-        )}
-      </View>
+      <ProfilePage
+        loading={profile.loading || prefs.loading}
+        error={profile.loadError ?? prefs.loadError}
+      >
+        {null}
+      </ProfilePage>
     );
   }
 
-  const units = prefs.value?.units ?? "imperial";
+  const units = prefs.value.units;
   const imperial = units === "imperial";
   const { feet, inches } =
     p.heightCm !== null
@@ -50,7 +50,6 @@ export default function AboutYouScreen() {
     } else {
       profile.update({ heightCm: feetInchesToCm(nextFeet, inches ?? 0) });
     }
-    profile.flush();
   }
 
   function commitInches(nextInches: number | null) {
@@ -59,21 +58,19 @@ export default function AboutYouScreen() {
     } else {
       profile.update({ heightCm: feetInchesToCm(feet ?? 0, nextInches ?? 0) });
     }
-    profile.flush();
   }
 
   function commitBirthYear(year: number | null) {
     const valid =
       year !== null && year >= MIN_BIRTH_YEAR && year <= CURRENT_YEAR;
     profile.update({ birthYear: valid ? year : null });
-    profile.flush();
   }
 
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={styles.content}
-      keyboardShouldPersistTaps="handled"
+    <ProfilePage
+      loading={profile.loading || prefs.loading}
+      error={profile.loadError ?? prefs.loadError}
+      saveAction={profile}
     >
       <HelperText>
         All optional. These only improve fit advice and aren’t shown anywhere
@@ -108,7 +105,6 @@ export default function AboutYouScreen() {
             value={p.heightCm !== null ? Math.round(p.heightCm) : null}
             onCommit={(cm) => {
               profile.update({ heightCm: cm });
-              profile.flush();
             }}
             unit="cm"
             integer
@@ -133,7 +129,6 @@ export default function AboutYouScreen() {
               weightKg:
                 value === null ? null : imperial ? lbToKg(value) : value,
             });
-            profile.flush();
           }}
           unit={imperial ? "lb" : "kg"}
           integer
@@ -164,27 +159,11 @@ export default function AboutYouScreen() {
       </View>
 
       {profile.error ? <ErrorText>{profile.error}</ErrorText> : null}
-    </ScrollView>
+    </ProfilePage>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: theme.colors.background,
-  },
-  content: {
-    padding: theme.spacing.md,
-    paddingBottom: theme.spacing.xxxl,
-    gap: theme.spacing.lg,
-    alignItems: "stretch",
-  },
-  center: {
-    flex: 1,
-    padding: theme.spacing.md,
-    justifyContent: "center",
-    alignItems: "flex-start",
-  },
   field: {
     alignItems: "stretch",
   },

@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
-import { useEffect, useState } from "react";
+import { useRouter, type Href } from "expo-router";
+import { useEffect, useRef, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
@@ -14,11 +15,13 @@ import {
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { ai } from "@/ai";
 import { fits, type Fit } from "@/storage/fits";
 import { imageUriFor, pieces, type Piece } from "@/storage/pieces";
 import { theme } from "@/theme/tokens";
 
 export default function OutfitsScreen() {
+  const router = useRouter();
   const insets = useSafeAreaInsets();
   const [occasion, setOccasion] = useState("");
   const [allFits, setAllFits] = useState<Fit[]>([]);
@@ -27,6 +30,39 @@ export default function OutfitsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [generating, setGenerating] = useState(false);
+  const assigningStyles = useRef(false);
+
+  async function assignMissingStyleLabels(storedFits: Fit[]) {
+    if (
+      assigningStyles.current ||
+      !storedFits.some((fit) => fit.styleProfileName === null)
+    ) {
+      return;
+    }
+    assigningStyles.current = true;
+    try {
+      const result = await ai.assignExistingFitStyles();
+      const assignments = new Map(
+        result.assignments.map((assignment) => [assignment.fit_id, assignment]),
+      );
+      setAllFits((current) =>
+        current.map((fit) => {
+          const assignment = assignments.get(fit.id);
+          return assignment && fit.styleProfileName === null
+            ? {
+                ...fit,
+                styleProfileId: assignment.style_profile_id,
+                styleProfileName: assignment.style_profile_name,
+              }
+            : fit;
+        }),
+      );
+    } catch (assignmentError) {
+      console.error("Couldn’t assign existing fit styles", assignmentError);
+    } finally {
+      assigningStyles.current = false;
+    }
+  }
 
   async function load() {
     try {
@@ -37,6 +73,7 @@ export default function OutfitsScreen() {
       ]);
       setAllFits(storedFits);
       setAllPieces(storedPieces);
+      void assignMissingStyleLabels(storedFits);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn’t load fits.");
     }
@@ -52,26 +89,34 @@ export default function OutfitsScreen() {
     setRefreshing(false);
   }
 
-  async function handleDeleteFit(id: string) {
-    const previous = allFits;
-    setAllFits((current) => current.filter((fit) => fit.id !== id));
-    try {
-      await fits.remove(id);
-    } catch (err) {
-      setAllFits(previous);
-      Alert.alert(
-        "Couldn’t delete fit",
-        err instanceof Error ? err.message : "Please try again.",
-      );
-    }
-  }
-
   async function handleGenerateFit() {
+    if (allPieces.length < 3) {
+      Alert.alert(
+        "Add more pieces",
+        "Add at least 3 pieces before generating a fit.",
+      );
+      return;
+    }
     setGenerating(true);
     try {
+      const result = await ai.generateFit(occasion.trim());
+      const fit: Fit = {
+        id: `fit_${Date.now().toString(36)}`,
+        title: result.title,
+        occasion: occasion.trim() || "Everyday",
+        pieceIds: [...result.piece_ids, ...result.optional_piece_ids],
+        why: result.why,
+        missing: result.missing ?? "",
+        styleProfileId: result.style_profile_id,
+        styleProfileName: result.style_profile_name,
+        saved: Date.now(),
+      };
+      await fits.save(fit);
+      setAllFits((current) => [fit, ...current]);
+    } catch (error) {
       Alert.alert(
-        "Coming soon",
-        "AI fit generation isn’t wired up yet — this needs an AI provider to be configured.",
+        "Couldn’t generate a fit",
+        error instanceof Error ? error.message : "Please try again.",
       );
     } finally {
       setGenerating(false);
@@ -99,7 +144,11 @@ export default function OutfitsScreen() {
       <ScrollView
         contentContainerStyle={styles.content}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={theme.colors.accent} />
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={handleRefresh}
+            tintColor={theme.colors.accent}
+          />
         }
       >
         <Text style={styles.heading}>Build a fit</Text>
@@ -115,7 +164,7 @@ export default function OutfitsScreen() {
           <Text style={styles.sectionTitle}>Lookbook</Text>
           <Text style={styles.sectionSubtitle}>
             {allFits.length} fit{allFits.length === 1 ? "" : "s"} on file. Tap a
-            piece row to see what’s in it.
+            fit to open it.
           </Text>
         </View>
 
@@ -128,7 +177,7 @@ export default function OutfitsScreen() {
                 key={fit.id}
                 fit={fit}
                 pieces={allPieces}
-                onDelete={() => handleDeleteFit(fit.id)}
+                onPress={() => router.push(`/outfits/${fit.id}` as Href)}
               />
             ))}
           </View>
@@ -136,7 +185,10 @@ export default function OutfitsScreen() {
       </ScrollView>
 
       <View
-        style={[styles.dock, { marginBottom: insets.bottom + theme.spacing.xs }]}
+        style={[
+          styles.dock,
+          { marginBottom: insets.bottom + theme.spacing.xs },
+        ]}
       >
         <Pressable
           accessibilityRole="button"
@@ -164,39 +216,43 @@ export default function OutfitsScreen() {
 function FitCard({
   fit,
   pieces: allPieces,
-  onDelete,
+  onPress,
 }: {
   fit: Fit;
   pieces: Piece[];
-  onDelete: () => void;
+  onPress: () => void;
 }) {
   const linkedPieces = fit.pieceIds
     .map((id) => allPieces.find((piece) => piece.id === id))
     .filter((piece): piece is Piece => piece != null);
 
   return (
-    <View style={styles.fitCard}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`Delete ${fit.title || "fit"}`}
-        onPress={onDelete}
-        style={styles.fitDelete}
-      >
-        <Ionicons name="close" size={16} color={theme.colors.textMuted} />
-      </Pressable>
-      <Text style={styles.fitTitle}>{fit.title || "Untitled fit"}</Text>
-      {fit.occasion.length > 0 && (
-        <View style={styles.occasionTag}>
-          <Text style={styles.occasionTagText}>{fit.occasion}</Text>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={`Open ${fit.title || "fit"}`}
+      onPress={onPress}
+      style={styles.fitCard}
+    >
+      <View style={styles.fitCardHeader}>
+        <View style={styles.fitCardTitle}>
+          <Text style={styles.fitTitle} numberOfLines={1}>
+            {fit.title || "Untitled fit"}
+          </Text>
+          {fit.occasion.length > 0 && (
+            <Text style={styles.fitMeta} numberOfLines={1}>
+              {fit.styleProfileName ?? "Assigning style"} · {fit.occasion}
+            </Text>
+          )}
         </View>
-      )}
+        <Ionicons
+          name="chevron-forward"
+          size={20}
+          color={theme.colors.textMuted}
+        />
+      </View>
       {linkedPieces.length > 0 && (
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.pieceRow}
-        >
-          {linkedPieces.map((piece) => {
+        <View style={styles.pieceRow}>
+          {linkedPieces.slice(0, 5).map((piece) => {
             const uri = imageUriFor(piece);
             return (
               <View key={piece.id} style={styles.pieceThumbWrapper}>
@@ -207,18 +263,23 @@ function FitCard({
                     contentFit="cover"
                   />
                 ) : (
-                  <View style={[styles.pieceThumb, styles.pieceThumbFallback]} />
+                  <View
+                    style={[styles.pieceThumb, styles.pieceThumbFallback]}
+                  />
                 )}
               </View>
             );
           })}
-        </ScrollView>
+          {linkedPieces.length > 5 ? (
+            <View style={[styles.pieceThumb, styles.morePieces]}>
+              <Text style={styles.morePiecesText}>
+                +{linkedPieces.length - 5}
+              </Text>
+            </View>
+          ) : null}
+        </View>
       )}
-      {fit.why.length > 0 && <Text style={styles.fitBody}>{fit.why}</Text>}
-      {fit.missing.length > 0 && (
-        <Text style={styles.fitMissing}>Missing: {fit.missing}</Text>
-      )}
-    </View>
+    </Pressable>
   );
 }
 
@@ -280,67 +341,60 @@ const styles = StyleSheet.create({
     gap: theme.spacing.sm,
   },
   fitCard: {
-    gap: theme.spacing.xxs,
-    padding: theme.spacing.md,
-    borderRadius: theme.radii.lg,
+    gap: theme.spacing.xs,
+    padding: theme.spacing.sm,
+    borderRadius: theme.radii.md,
     backgroundColor: theme.colors.backgroundElevated,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: theme.colors.border,
   },
-  fitDelete: {
-    position: "absolute",
-    top: theme.spacing.xs,
-    right: theme.spacing.xs,
-    padding: theme.spacing.xxs,
-    zIndex: 1,
+  fitCardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing.sm,
+  },
+  fitCardTitle: {
+    flex: 1,
+    gap: theme.spacing.xxs,
   },
   fitTitle: {
     fontSize: theme.typography.headline.fontSize,
     lineHeight: theme.typography.headline.lineHeight,
     fontWeight: theme.typography.headline.fontWeight,
     color: theme.colors.text,
-    paddingRight: theme.spacing.lg,
   },
-  occasionTag: {
-    alignSelf: "flex-start",
-    paddingHorizontal: theme.spacing.xs,
-    paddingVertical: theme.spacing.xxs,
-    borderRadius: theme.radii.pill,
-    backgroundColor: theme.colors.background,
-  },
-  occasionTagText: {
+  fitMeta: {
     fontSize: theme.typography.caption1.fontSize,
     lineHeight: theme.typography.caption1.lineHeight,
     color: theme.colors.accent,
+    textTransform: "uppercase",
   },
   pieceRow: {
+    flexDirection: "row",
     gap: theme.spacing.xs,
-    paddingVertical: theme.spacing.xxs,
   },
   pieceThumbWrapper: {
     borderRadius: theme.radii.md,
     overflow: "hidden",
   },
   pieceThumb: {
-    width: 64,
-    height: 64,
+    width: 52,
+    height: 52,
   },
   pieceThumbFallback: {
     backgroundColor: theme.colors.background,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: theme.colors.border,
   },
-  fitBody: {
-    fontSize: theme.typography.subheadline.fontSize,
-    lineHeight: theme.typography.subheadline.lineHeight,
-    color: theme.colors.text,
-    marginTop: theme.spacing.xxs,
+  morePieces: {
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: theme.radii.md,
+    backgroundColor: theme.colors.background,
   },
-  fitMissing: {
+  morePiecesText: {
     fontSize: theme.typography.caption1.fontSize,
-    lineHeight: theme.typography.caption1.lineHeight,
     color: theme.colors.textMuted,
-    marginTop: theme.spacing.xxs,
   },
   dock: {
     position: "absolute",
@@ -365,4 +419,3 @@ const styles = StyleSheet.create({
     color: theme.colors.background,
   },
 });
-

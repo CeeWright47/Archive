@@ -43,7 +43,10 @@ function stripDataUriPrefix(value: string): string {
     : value;
 }
 
-async function cacheImageIfNeeded(id: string, base64: string | null): Promise<void> {
+async function cacheImageIfNeeded(
+  id: string,
+  base64: string | null,
+): Promise<void> {
   if (!base64 || images.read(id)) return;
   images.saveFromBase64(id, stripDataUriPrefix(base64));
 }
@@ -66,8 +69,31 @@ export const wants = {
     return rows.map(mapRowToWant);
   },
 
+  async add(want: Want, imageBase64: string): Promise<void> {
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) throw new Error("Not signed in");
+    const { error } = await supabase.from("wants").insert({
+      id: want.id,
+      user_id: user.id,
+      item: want.item,
+      reason: want.reason,
+      price: want.price,
+      score: want.score,
+      image: imageBase64,
+      owned: want.owned,
+      added: want.added,
+    });
+    if (error) throw error;
+    images.saveFromBase64(want.id, imageBase64);
+  },
+
   async setOwned(id: string, owned: boolean): Promise<void> {
-    const { error } = await supabase.from("wants").update({ owned }).eq("id", id);
+    const { error } = await supabase
+      .from("wants")
+      .update({ owned })
+      .eq("id", id);
     if (error) throw error;
   },
 

@@ -26,7 +26,11 @@ export default function OccasionsScreen() {
   const value = prefs.value;
   if (!value)
     return (
-      <ProfilePage loading={prefs.loading} error={prefs.loadError}>
+      <ProfilePage
+        loading={prefs.loading}
+        error={prefs.loadError}
+        saveAction={prefs}
+      >
         {null}
       </ProfilePage>
     );
@@ -44,7 +48,11 @@ export default function OccasionsScreen() {
       }));
   };
   return (
-    <ProfilePage loading={prefs.loading} error={prefs.loadError}>
+    <ProfilePage
+      loading={prefs.loading}
+      error={prefs.loadError}
+      saveAction={prefs}
+    >
       <HelperText>
         Select the situations you actually dress for. Selected chips sort to the
         front.

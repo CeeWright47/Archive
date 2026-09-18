@@ -1,20 +1,53 @@
 import { Ionicons } from "@expo/vector-icons";
+import { Image } from "expo-image";
 import { useState } from "react";
-import { ActivityIndicator, Alert, Pressable, StyleSheet, Text, View } from "react-native";
+import {
+    ActivityIndicator,
+    Alert,
+    Pressable,
+    StyleSheet,
+    Text,
+    View,
+} from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { ai, type ScanResult } from "@/ai";
+import { prepareAiImage } from "@/ai/image";
+import { pickImage } from "@/media/pickImage";
+import { wants, type Want } from "@/storage/wants";
 import { theme } from "@/theme/tokens";
 
 export default function ScanScreen() {
   const insets = useSafeAreaInsets();
   const [scanning, setScanning] = useState(false);
+  const [result, setResult] = useState<ScanResult | null>(null);
+  const [imageUri, setImageUri] = useState<string | null>(null);
 
   async function handleScan() {
     setScanning(true);
     try {
+      const picked = await pickImage.fromLibrary();
+      if (!picked) return;
+      setImageUri(picked.uri);
+      const image = await prepareAiImage(picked.uri);
+      const next = await ai.scanItem(image);
+      setResult(next);
+      if (next.verdict === "cop") {
+        const want: Want = {
+          id: `want_${Date.now().toString(36)}`,
+          item: next.item || "Scanned item",
+          reason: next.take,
+          price: next.price ?? "",
+          score: next.score,
+          owned: false,
+          added: Date.now(),
+        };
+        await wants.add(want, image);
+      }
+    } catch (error) {
       Alert.alert(
-        "Coming soon",
-        "Scanning an item isn’t wired up yet — this needs an AI provider to be configured.",
+        "Scan failed",
+        error instanceof Error ? error.message : "Try another angle.",
       );
     } finally {
       setScanning(false);
@@ -29,10 +62,29 @@ export default function ScanScreen() {
           See something in a store or online? Snap it and get a verdict against
           your actual closet.
         </Text>
+        {imageUri && (
+          <Image
+            source={{ uri: imageUri }}
+            style={styles.preview}
+            contentFit="cover"
+          />
+        )}
+        {result && (
+          <View style={styles.result}>
+            <Text style={styles.verdict}>{result.verdict}</Text>
+            <Text style={styles.score}>{result.score}/10 closet fit</Text>
+            <Text style={styles.item}>{result.item}</Text>
+            <Text style={styles.take}>{result.take}</Text>
+            {result.price && <Text style={styles.price}>{result.price}</Text>}
+          </View>
+        )}
       </View>
 
       <View
-        style={[styles.dock, { marginBottom: insets.bottom + theme.spacing.xs }]}
+        style={[
+          styles.dock,
+          { marginBottom: insets.bottom + theme.spacing.xs },
+        ]}
       >
         <Pressable
           accessibilityRole="button"
@@ -83,6 +135,36 @@ const styles = StyleSheet.create({
     color: theme.colors.textMuted,
     textAlign: "center",
   },
+  preview: {
+    width: "100%",
+    maxWidth: 360,
+    aspectRatio: 4 / 3,
+    borderRadius: theme.radii.md,
+  },
+  result: {
+    width: "100%",
+    maxWidth: 360,
+    gap: theme.spacing.xxs,
+    padding: theme.spacing.md,
+    borderRadius: theme.radii.md,
+    backgroundColor: theme.colors.backgroundElevated,
+  },
+  verdict: {
+    fontFamily: theme.fonts.serif,
+    fontSize: theme.typography.title1.fontSize,
+    color: theme.colors.accent,
+    textTransform: "capitalize",
+  },
+  score: { color: theme.colors.textMuted },
+  item: {
+    color: theme.colors.text,
+    fontSize: theme.typography.headline.fontSize,
+  },
+  take: {
+    color: theme.colors.textMuted,
+    lineHeight: theme.typography.body.lineHeight,
+  },
+  price: { color: theme.colors.text },
   dock: {
     position: "absolute",
     left: theme.spacing.md,

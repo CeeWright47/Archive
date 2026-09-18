@@ -1,7 +1,7 @@
 import { Stack } from "expo-router";
 
 import { SavedIndicator } from "@/components/settings";
-import { SaveStatusProvider } from "@/hooks/useAutosave";
+import { SaveStatusProvider } from "@/hooks/useProfileSave";
 import { theme } from "@/theme/tokens";
 
 const SCREEN_TITLES: Record<string, string> = {

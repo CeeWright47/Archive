@@ -15,7 +15,11 @@ export default function SizesScreen() {
   const profile = useUserProfile();
   const p = profile.value;
   return (
-    <ProfilePage loading={profile.loading} error={profile.loadError}>
+    <ProfilePage
+      loading={profile.loading}
+      error={profile.loadError}
+      saveAction={profile}
+    >
       {p && (
         <>
           <FieldLabel>Tops</FieldLabel>

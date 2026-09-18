@@ -16,7 +16,11 @@ export default function AccountScreen() {
   const profile = useUserProfile();
   const value = profile.value;
   return (
-    <ProfilePage loading={profile.loading} error={profile.loadError}>
+    <ProfilePage
+      loading={profile.loading}
+      error={profile.loadError}
+      saveAction={profile}
+    >
       {value && (
         <>
           <HelperText>
