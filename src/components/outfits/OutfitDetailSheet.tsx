@@ -2,7 +2,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { useEffect, useState, type ReactNode } from "react";
 import {
-    Modal,
     Pressable,
     ScrollView,
     StyleSheet,
@@ -10,8 +9,8 @@ import {
     TextInput,
     View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
+import { BottomSheet } from "@/components/BottomSheet";
 import { images } from "@/storage/images";
 import type { Outfit } from "@/storage/outfits";
 import type { Piece } from "@/storage/pieces";
@@ -34,7 +33,6 @@ export function OutfitDetailSheet({
   onSave,
   onDelete,
 }: OutfitDetailSheetProps) {
-  const insets = useSafeAreaInsets();
   const [editing, setEditing] = useState(startInEditMode);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [draft, setDraft] = useState(outfit);
@@ -71,16 +69,8 @@ export function OutfitDetailSheet({
   }
 
   return (
-    <Modal visible animationType="slide" transparent onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose} />
-      <View
-        style={[
-          styles.sheet,
-          { paddingBottom: insets.bottom + theme.spacing.md },
-        ]}
-      >
-        <View style={styles.handle} />
-        <ScrollView
+    <BottomSheet onClose={onClose}>
+      <ScrollView
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
         >
@@ -259,8 +249,7 @@ export function OutfitDetailSheet({
             </View>
           )}
         </ScrollView>
-      </View>
-    </Modal>
+    </BottomSheet>
   );
 }
 
@@ -321,25 +310,6 @@ function ActionButton({
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-  },
-  sheet: {
-    maxHeight: "90%",
-    backgroundColor: theme.colors.backgroundElevated,
-    borderTopLeftRadius: theme.radii.xl,
-    borderTopRightRadius: theme.radii.xl,
-    paddingTop: theme.spacing.xs,
-  },
-  handle: {
-    alignSelf: "center",
-    width: theme.spacing.xl,
-    height: theme.spacing.xxs,
-    borderRadius: theme.radii.pill,
-    backgroundColor: theme.colors.border,
-    marginBottom: theme.spacing.sm,
-  },
   content: {
     paddingHorizontal: theme.spacing.md,
     gap: theme.spacing.md,

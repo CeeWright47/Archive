@@ -1,8 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import { useEffect, useState } from "react";
-import { Alert, Modal, Pressable, StyleSheet, Text, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Alert, Pressable, StyleSheet, Text, View } from "react-native";
 
+import { BottomSheet } from "@/components/BottomSheet";
 import { PrimaryButton } from "@/components/settings";
 import { theme } from "@/theme/tokens";
 
@@ -21,7 +21,6 @@ export function UpgradeSheet({
   visible: boolean;
   onClose: () => void;
 }) {
-  const insets = useSafeAreaInsets();
   const [selected, setSelected] = useState<PurchasePlan>("annual");
 
   useEffect(() => {
@@ -36,80 +35,56 @@ export function UpgradeSheet({
   };
 
   return (
-    <Modal
-      visible={visible}
-      transparent
-      animationType="slide"
-      onRequestClose={onClose}
-    >
-      <View style={styles.overlay}>
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Close upgrade"
-          style={StyleSheet.absoluteFill}
-          onPress={onClose}
-        />
-        <View style={[styles.sheet, { paddingBottom: insets.bottom + 16 }]}>
-          <View style={styles.header}>
-            <View>
-              <Text style={styles.eyebrow}>ARCHIVE PRO</Text>
-              <Text style={styles.title}>Your closet, without limits.</Text>
+    <BottomSheet visible={visible} onClose={onClose}>
+      <View style={styles.sheet}>
+        <View style={styles.header}>
+          <Text style={styles.eyebrow}>ARCHIVE PRO</Text>
+          <Text style={styles.title}>Your closet, without limits.</Text>
+        </View>
+
+        <View style={styles.unlocks}>
+          {UNLOCKS.map((unlock) => (
+            <View key={unlock} style={styles.unlockRow}>
+              <Ionicons
+                name="checkmark"
+                size={18}
+                color={theme.colors.accent}
+              />
+              <Text style={styles.unlockText}>{unlock}</Text>
             </View>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityLabel="Close"
-              onPress={onClose}
-              hitSlop={12}
-              style={styles.close}
-            >
-              <Ionicons name="close" size={22} color={theme.colors.text} />
-            </Pressable>
-          </View>
+          ))}
+        </View>
 
-          <View style={styles.unlocks}>
-            {UNLOCKS.map((unlock) => (
-              <View key={unlock} style={styles.unlockRow}>
-                <Ionicons
-                  name="checkmark"
-                  size={18}
-                  color={theme.colors.accent}
-                />
-                <Text style={styles.unlockText}>{unlock}</Text>
-              </View>
-            ))}
-          </View>
-
-          <View style={styles.plans}>
-            <PlanOption
-              selected={selected === "monthly"}
-              title="Monthly"
-              price="$7.99"
-              onPress={() => setSelected("monthly")}
-            />
-            <PlanOption
-              selected={selected === "annual"}
-              title="Annual"
-              price="$49.99"
-              detail="$4.17/mo · 7-day trial"
-              badge="Save 48%"
-              onPress={() => setSelected("annual")}
-            />
-            <PlanOption
-              selected={selected === "lifetime"}
-              title="Lifetime"
-              price="$79"
-              detail="Pay once, keep forever."
-              onPress={() => setSelected("lifetime")}
-            />
-          </View>
-
-          <PrimaryButton
-            label={selected === "lifetime" ? "Choose lifetime" : "Start trial"}
-            onPress={purchase}
+        <View style={styles.plans}>
+          <PlanOption
+            selected={selected === "monthly"}
+            title="Monthly"
+            price="$7.99"
+            onPress={() => setSelected("monthly")}
+          />
+          <PlanOption
+            selected={selected === "annual"}
+            title="Annual"
+            price="$49.99"
+            detail="$4.17/mo · 7-day trial"
+            badge="Save 48%"
+            onPress={() => setSelected("annual")}
+          />
+          <PlanOption
+            selected={selected === "lifetime"}
+            title="Lifetime"
+            price="$79"
+            detail="Pay once, keep forever."
+            onPress={() => setSelected("lifetime")}
           />
         </View>
+
+        <PrimaryButton
+          label={selected === "lifetime" ? "Choose lifetime" : "Start trial"}
+          onPress={purchase}
+        />
       </View>
-    </Modal>
+    </BottomSheet>
   );
 }
 
@@ -148,25 +123,12 @@ function PlanOption({
 }
 
 const styles = StyleSheet.create({
-  overlay: {
-    flex: 1,
-    justifyContent: "flex-end",
-    backgroundColor: "rgba(0,0,0,0.58)",
-  },
   sheet: {
-    padding: theme.spacing.md,
+    paddingHorizontal: theme.spacing.md,
     gap: theme.spacing.lg,
-    backgroundColor: theme.colors.background,
-    borderTopLeftRadius: theme.radii.xl,
-    borderTopRightRadius: theme.radii.xl,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderColor: theme.colors.border,
   },
   header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "flex-start",
-    gap: theme.spacing.md,
+    paddingRight: theme.spacing.xxl,
   },
   eyebrow: {
     fontFamily: theme.fonts.mono,
@@ -180,12 +142,6 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.title1.fontSize,
     lineHeight: theme.typography.title1.lineHeight,
     color: theme.colors.text,
-  },
-  close: {
-    width: 36,
-    height: 36,
-    alignItems: "center",
-    justifyContent: "center",
   },
   unlocks: { gap: theme.spacing.xs },
   unlockRow: { flexDirection: "row", alignItems: "center", gap: 10 },

@@ -4,7 +4,6 @@ import { useEffect, useState, type ReactNode } from "react";
 import {
     ActivityIndicator,
     Alert,
-    Modal,
     Pressable,
     ScrollView,
     StyleSheet,
@@ -12,9 +11,9 @@ import {
     TextInput,
     View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ai, type PairingResult } from "@/ai";
+import { BottomSheet } from "@/components/BottomSheet";
 import { ChipGroup } from "@/components/settings";
 import { pieceFitsFor, type PieceFit } from "@/storage/fitVocabulary";
 import {
@@ -44,7 +43,6 @@ export function PieceDetailSheet({
   onSave,
   onDelete,
 }: PieceDetailSheetProps) {
-  const insets = useSafeAreaInsets();
   const [editing, setEditing] = useState(startInEditMode);
   const [draft, setDraft] = useState(piece);
   const [pairing, setPairing] = useState<PairingResult | null>(null);
@@ -101,16 +99,8 @@ export function PieceDetailSheet({
   }
 
   return (
-    <Modal visible animationType="slide" transparent onRequestClose={onClose}>
-      <Pressable style={styles.backdrop} onPress={onClose} />
-      <View
-        style={[
-          styles.sheet,
-          { paddingBottom: insets.bottom + theme.spacing.md },
-        ]}
-      >
-        <View style={styles.handle} />
-        <ScrollView
+    <BottomSheet onClose={onClose}>
+      <ScrollView
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
         >
@@ -277,8 +267,7 @@ export function PieceDetailSheet({
             />
           </View>
         </ScrollView>
-      </View>
-    </Modal>
+    </BottomSheet>
   );
 }
 
@@ -339,25 +328,6 @@ function ActionButton({
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-  },
-  sheet: {
-    maxHeight: "85%",
-    backgroundColor: theme.colors.backgroundElevated,
-    borderTopLeftRadius: theme.radii.xl,
-    borderTopRightRadius: theme.radii.xl,
-    paddingTop: theme.spacing.xs,
-  },
-  handle: {
-    alignSelf: "center",
-    width: theme.spacing.xl,
-    height: theme.spacing.xxs,
-    borderRadius: theme.radii.pill,
-    backgroundColor: theme.colors.border,
-    marginBottom: theme.spacing.sm,
-  },
   content: {
     paddingHorizontal: theme.spacing.md,
     gap: theme.spacing.md,

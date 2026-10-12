@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Modal, Pressable, StyleSheet, Text, View } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 
+import { BottomSheet } from "@/components/BottomSheet";
 import { ChipGroup } from "@/components/settings";
 import type { PieceFit } from "@/storage/fitVocabulary";
 import {
@@ -33,30 +33,13 @@ export function SortSheet({
   onFitChange,
   onClose,
 }: SortSheetProps) {
-  const insets = useSafeAreaInsets();
   const options = SORT_OPTIONS.filter(
     (option) => showWornOptions || !WORN_SORTS.includes(option.value),
   );
 
   return (
-    <Modal
-      visible={visible}
-      animationType="slide"
-      transparent
-      onRequestClose={onClose}
-    >
-      <Pressable
-        style={styles.backdrop}
-        onPress={onClose}
-        accessibilityLabel="Close"
-      />
-      <View
-        style={[
-          styles.sheet,
-          { paddingBottom: insets.bottom + theme.spacing.md },
-        ]}
-      >
-        <View style={styles.handle} />
+    <BottomSheet visible={visible} onClose={onClose}>
+      <View style={styles.content}>
         <Text style={styles.title}>Sort by</Text>
         {options.map((option) => {
           const active = option.value === value;
@@ -102,29 +85,14 @@ export function SortSheet({
           </>
         )}
       </View>
-    </Modal>
+    </BottomSheet>
   );
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
-  },
-  sheet: {
-    backgroundColor: theme.colors.backgroundElevated,
-    borderTopLeftRadius: theme.radii.xl,
-    borderTopRightRadius: theme.radii.xl,
-    paddingTop: theme.spacing.xs,
+  content: {
     paddingHorizontal: theme.spacing.md,
-  },
-  handle: {
-    alignSelf: "center",
-    width: theme.spacing.xl,
-    height: theme.spacing.xxs,
-    borderRadius: theme.radii.pill,
-    backgroundColor: theme.colors.border,
-    marginBottom: theme.spacing.sm,
+    paddingBottom: theme.spacing.xs,
   },
   title: {
     fontFamily: theme.fonts.mono,
