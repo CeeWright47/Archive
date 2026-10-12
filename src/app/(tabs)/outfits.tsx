@@ -110,6 +110,7 @@ export default function OutfitsScreen() {
         missing: result.missing ?? "",
         styleProfileId: result.style_profile_id,
         styleProfileName: result.style_profile_name,
+        rating: null,
         saved: Date.now(),
       };
       await fits.save(fit);
@@ -157,7 +158,7 @@ export default function OutfitsScreen() {
           style={styles.occasionInput}
           value={occasion}
           onChangeText={setOccasion}
-          placeholder="What’s the occasion?"
+          placeholder="Describe what you’re going for…"
           placeholderTextColor={theme.colors.textMuted}
           returnKeyType="go"
           onSubmitEditing={() => {

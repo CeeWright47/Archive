@@ -12,6 +12,7 @@ export interface Outfit {
   occasion: string;
   note: string;
   inInspo: boolean;
+  rating: number | null;
   added: number;
 }
 

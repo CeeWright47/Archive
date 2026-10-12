@@ -43,6 +43,7 @@ export async function catalogPiecesFromLibrary(
       vibe: catalog.vibe,
       seasons: catalog.seasons,
       fit: null,
+      rating: null,
       createdAt: Date.now(),
     };
     await pieces.save(piece);

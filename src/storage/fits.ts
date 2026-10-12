@@ -11,6 +11,7 @@ export interface Fit {
   missing: string;
   styleProfileId: string | null;
   styleProfileName: string | null;
+  rating: number | null;
   saved: number;
 }
 
@@ -23,6 +24,7 @@ interface FitRow {
   missing: string | null;
   style_profile_id: string | null;
   style_profile_name: string | null;
+  rating: number | null;
   saved: number | string;
 }
 
@@ -36,6 +38,7 @@ function mapRowToFit(row: FitRow): Fit {
     missing: row.missing ?? "",
     styleProfileId: row.style_profile_id,
     styleProfileName: row.style_profile_name,
+    rating: row.rating ?? null,
     saved: Number(row.saved),
   };
 }
@@ -75,6 +78,7 @@ export const fits = {
       missing: fit.missing,
       style_profile_id: fit.styleProfileId,
       style_profile_name: fit.styleProfileName,
+      rating: fit.rating,
       saved: fit.saved,
     });
     if (error) throw error;

@@ -12,8 +12,11 @@ import {
 } from "react-native";
 
 import { BottomSheet } from "@/components/BottomSheet";
-import { ChipGroup } from "@/components/settings";
+import { DropdownField } from "@/components/DropdownField";
+import { StarRating } from "@/components/StarRating";
+import { COLORS } from "@/storage/colorVocabulary";
 import { pieceFitsFor, type PieceFit } from "@/storage/fitVocabulary";
+import { MATERIALS } from "@/storage/materialVocabulary";
 import {
     PIECE_CATEGORIES,
     imageUriFor,
@@ -22,7 +25,6 @@ import {
 } from "@/storage/pieces";
 import { subcategoriesFor } from "@/storage/subcategories";
 import { theme } from "@/theme/tokens";
-import { CategoryChips } from "./CategoryChips";
 
 interface PieceDetailSheetProps {
   piece: Piece | null;
@@ -53,17 +55,33 @@ export function PieceDetailSheet({
   const fitOptions = pieceFitsFor(draft.category);
 
   // Fit is persisted immediately because chip taps are independent of text edits.
-  function handleFitChange(fit: PieceFit | null) {
+  async function handleFitChange(fit: PieceFit | null) {
     if (!draft) return;
+    const previous = draft;
     const next = { ...draft, fit };
     setDraft(next);
-    onSave(next);
+    try {
+      await onSave(next);
+    } catch (error) {
+      setDraft(previous);
+      Alert.alert(
+        "Couldn’t save fit",
+        error instanceof Error ? error.message : "Please try again.",
+      );
+    }
   }
 
-  function handleSave() {
+  async function handleSave() {
     if (!draft) return;
-    onSave(draft);
-    setEditing(false);
+    try {
+      await onSave(draft);
+      setEditing(false);
+    } catch (error) {
+      Alert.alert(
+        "Couldn’t save changes",
+        error instanceof Error ? error.message : "Please try again.",
+      );
+    }
   }
 
   function handleDelete() {
@@ -91,11 +109,20 @@ export function PieceDetailSheet({
             </View>
           )}
 
-          <View style={styles.imageWrapper}>
+          <View style={editing ? styles.imageWrapperEditing : styles.imageWrapper}>
             {uri ? (
-              <Image source={{ uri }} style={styles.image} contentFit="cover" />
+              <Image
+                source={{ uri }}
+                style={editing ? styles.imageEditing : styles.image}
+                contentFit="cover"
+              />
             ) : (
-              <View style={[styles.image, styles.imageFallback]} />
+              <View
+                style={[
+                  editing ? styles.imageEditing : styles.image,
+                  styles.imageFallback,
+                ]}
+              />
             )}
           </View>
 
@@ -110,58 +137,84 @@ export function PieceDetailSheet({
                   placeholderTextColor={theme.colors.textMuted}
                 />
               </Field>
-              <Field label="Category">
-                <CategoryChips
-                  categories={PIECE_CATEGORIES}
-                  selected={draft.category}
-                  onSelect={(category) => {
-                    const next = (category ?? draft.category) as PieceCategory;
-                    const sameCategory = next === draft.category;
-                    setDraft({
-                      ...draft,
-                      category: next,
-                      subcategory: sameCategory ? draft.subcategory : null,
-                      fit:
-                        sameCategory || pieceFitsFor(next) ? draft.fit : null,
-                    });
-                  }}
+              <Field label="Rating">
+                <StarRating
+                  value={draft.rating}
+                  onChange={(rating) => setDraft({ ...draft, rating })}
                 />
               </Field>
-              <Field label="Type">
-                <CategoryChips
-                  categories={subcategoriesFor(draft.category)}
-                  selected={draft.subcategory}
-                  onSelect={(subcategory) =>
-                    setDraft({ ...draft, subcategory })
-                  }
-                />
-              </Field>
-              {fitOptions && (
-                <Field label="Fit">
-                  <ChipGroup
-                    mode="single"
-                    options={fitOptions}
-                    value={draft.fit as PieceFit | null}
-                    onChange={handleFitChange}
+              <View style={styles.fieldRow}>
+                <Field label="Category" flex>
+                  <DropdownField
+                    title="Category"
+                    value={draft.category}
+                    options={PIECE_CATEGORIES}
+                    onChange={(category) => {
+                      const next = (category ??
+                        draft.category) as PieceCategory;
+                      const sameCategory = next === draft.category;
+                      setDraft({
+                        ...draft,
+                        category: next,
+                        subcategory: sameCategory ? draft.subcategory : null,
+                        fit:
+                          sameCategory || pieceFitsFor(next)
+                            ? draft.fit
+                            : null,
+                      });
+                    }}
                   />
                 </Field>
-              )}
-              <Field label="Color">
-                <TextInput
-                  style={styles.input}
-                  value={draft.color}
-                  onChangeText={(color) => setDraft({ ...draft, color })}
-                  placeholder="Color"
-                  placeholderTextColor={theme.colors.textMuted}
-                />
-              </Field>
+                <Field label="Type" flex>
+                  <DropdownField
+                    title="Type"
+                    value={draft.subcategory}
+                    options={subcategoriesFor(draft.category)}
+                    clearable
+                    onChange={(subcategory) =>
+                      setDraft({
+                        ...draft,
+                        subcategory: subcategory as Piece["subcategory"],
+                      })
+                    }
+                  />
+                </Field>
+              </View>
+              <View style={styles.fieldRow}>
+                {fitOptions && (
+                  <Field label="Fit" flex>
+                    <DropdownField
+                      title="Fit"
+                      value={draft.fit}
+                      options={fitOptions}
+                      clearable
+                      onChange={(fit) =>
+                        handleFitChange(fit as PieceFit | null)
+                      }
+                    />
+                  </Field>
+                )}
+                <Field label="Color" flex>
+                  <DropdownField
+                    title="Color"
+                    value={draft.color || null}
+                    options={COLORS}
+                    clearable
+                    onChange={(color) =>
+                      setDraft({ ...draft, color: color ?? "" })
+                    }
+                  />
+                </Field>
+              </View>
               <Field label="Material">
-                <TextInput
-                  style={styles.input}
-                  value={draft.material}
-                  onChangeText={(material) => setDraft({ ...draft, material })}
-                  placeholder="Material"
-                  placeholderTextColor={theme.colors.textMuted}
+                <DropdownField
+                  title="Material"
+                  value={draft.material || null}
+                  options={MATERIALS}
+                  clearable
+                  onChange={(material) =>
+                    setDraft({ ...draft, material: material ?? "" })
+                  }
                 />
               </Field>
             </View>
@@ -188,9 +241,17 @@ export function PieceDetailSheet({
   );
 }
 
-function Field({ label, children }: { label: string; children: ReactNode }) {
+function Field({
+  label,
+  flex,
+  children,
+}: {
+  label: string;
+  flex?: boolean;
+  children: ReactNode;
+}) {
   return (
-    <View style={styles.field}>
+    <View style={[styles.field, flex && styles.fieldFlex]}>
       <Text style={styles.fieldLabel}>{label}</Text>
       {children}
     </View>
@@ -264,9 +325,22 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     backgroundColor: theme.colors.background,
   },
+  // Compact banner while editing — the fields, not the photo, are the point
+  // of this screen, and the full 4:5 image otherwise pushes most of them
+  // below the fold.
+  imageWrapperEditing: {
+    height: 140,
+    borderRadius: theme.radii.lg,
+    overflow: "hidden",
+    backgroundColor: theme.colors.background,
+  },
   image: {
     width: "100%",
     aspectRatio: 4 / 5,
+  },
+  imageEditing: {
+    width: "100%",
+    height: "100%",
   },
   imageFallback: {
     backgroundColor: theme.colors.background,
@@ -274,8 +348,15 @@ const styles = StyleSheet.create({
   fields: {
     gap: theme.spacing.sm,
   },
+  fieldRow: {
+    flexDirection: "row",
+    gap: theme.spacing.sm,
+  },
   field: {
     gap: theme.spacing.xxs,
+  },
+  fieldFlex: {
+    flex: 1,
   },
   fieldLabel: {
     fontSize: theme.typography.caption1.fontSize,

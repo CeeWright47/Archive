@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { useEffect, useState, type ReactNode } from "react";
 import {
+    Alert,
     Pressable,
     ScrollView,
     StyleSheet,
@@ -11,6 +12,7 @@ import {
 } from "react-native";
 
 import { BottomSheet } from "@/components/BottomSheet";
+import { StarRating } from "@/components/StarRating";
 import { images } from "@/storage/images";
 import type { Outfit } from "@/storage/outfits";
 import type { Piece } from "@/storage/pieces";
@@ -57,15 +59,22 @@ export function OutfitDetailSheet({
     setDraft({ ...draft, pieceIds });
   }
 
-  function handleSave() {
+  async function handleSave() {
     if (!draft) return;
-    onSave({
-      ...draft,
-      dateWorn: draft.dateWorn.trim(),
-      occasion: draft.occasion.trim(),
-      note: draft.note.trim(),
-    });
-    setEditing(false);
+    try {
+      await onSave({
+        ...draft,
+        dateWorn: draft.dateWorn.trim(),
+        occasion: draft.occasion.trim(),
+        note: draft.note.trim(),
+      });
+      setEditing(false);
+    } catch (error) {
+      Alert.alert(
+        "Couldn’t save changes",
+        error instanceof Error ? error.message : "Please try again.",
+      );
+    }
   }
 
   return (
@@ -99,6 +108,12 @@ export function OutfitDetailSheet({
 
           {editing ? (
             <View style={styles.fields}>
+              <Field label="Rating">
+                <StarRating
+                  value={draft.rating}
+                  onChange={(rating) => setDraft({ ...draft, rating })}
+                />
+              </Field>
               <Field label="Date worn">
                 <TextInput
                   style={styles.input}
@@ -182,6 +197,7 @@ export function OutfitDetailSheet({
               <Text style={styles.title}>
                 {currentOutfit.occasion || "Everyday outfit"}
               </Text>
+              <StarRating value={currentOutfit.rating} />
               <Field label="Notes">
                 <Text
                   style={currentOutfit.note ? styles.value : styles.mutedValue}

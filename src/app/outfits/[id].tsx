@@ -12,6 +12,7 @@ import {
     View,
 } from "react-native";
 
+import { StarRating } from "@/components/StarRating";
 import { fits, type Fit } from "@/storage/fits";
 import { imageUriFor, pieces, type Piece } from "@/storage/pieces";
 import { theme } from "@/theme/tokens";
@@ -46,6 +47,22 @@ export default function OutfitDetailScreen() {
       )
       .finally(() => setLoading(false));
   }, [id]);
+
+  async function handleRate(rating: number | null) {
+    if (!fit) return;
+    const previous = fit;
+    const next = { ...fit, rating };
+    setFit(next);
+    try {
+      await fits.save(next);
+    } catch (rateError) {
+      setFit(previous);
+      Alert.alert(
+        "Couldn’t save rating",
+        rateError instanceof Error ? rateError.message : "Please try again.",
+      );
+    }
+  }
 
   function handleDelete() {
     if (!fit) return;
@@ -97,6 +114,7 @@ export default function OutfitDetailScreen() {
             {fit.styleProfileName ?? "Assigning style"}
           </Text>
           <Text style={styles.title}>{fit.title || "Untitled fit"}</Text>
+          <StarRating value={fit.rating} onChange={handleRate} />
         </View>
         <Pressable
           accessibilityRole="button"

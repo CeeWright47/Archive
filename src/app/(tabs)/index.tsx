@@ -300,6 +300,7 @@ export default function WardrobeScreen() {
           missing: result.missing ?? "",
           styleProfileId: result.style_profile_id,
           styleProfileName: result.style_profile_name,
+          rating: null,
           saved: Date.now(),
         };
         await fits.save(fit);

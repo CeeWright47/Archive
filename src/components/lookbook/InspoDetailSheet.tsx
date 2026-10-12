@@ -2,17 +2,23 @@ import { Image } from "expo-image";
 import { StyleSheet, Text, View } from "react-native";
 
 import { BottomSheet } from "@/components/BottomSheet";
+import { StarRating } from "@/components/StarRating";
 import { imageUriForInspo, type InspoImage } from "@/storage/inspo";
 import { theme } from "@/theme/tokens";
 
 interface InspoDetailSheetProps {
   entry: InspoImage | null;
   onClose: () => void;
+  onRate: (id: string, rating: number | null) => void;
 }
 
 // Full, uncropped view of an inspiration photo — the grid thumbnail crops to
 // a 3:4 card, this shows the whole outfit.
-export function InspoDetailSheet({ entry, onClose }: InspoDetailSheetProps) {
+export function InspoDetailSheet({
+  entry,
+  onClose,
+  onRate,
+}: InspoDetailSheetProps) {
   if (!entry) return null;
   const uri = imageUriForInspo(entry);
 
@@ -26,6 +32,10 @@ export function InspoDetailSheet({ entry, onClose }: InspoDetailSheetProps) {
             <View style={[styles.image, styles.imageFallback]} />
           )}
         </View>
+        <StarRating
+          value={entry.rating}
+          onChange={(rating) => onRate(entry.id, rating)}
+        />
         {entry.vibe.length > 0 && (
           <Text style={styles.vibe}>{entry.vibe}</Text>
         )}

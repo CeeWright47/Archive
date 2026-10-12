@@ -6,6 +6,7 @@ import { images } from "./images";
 export interface InspoImage {
   id: string;
   vibe: string;
+  rating: number | null;
   added: number;
 }
 
@@ -14,6 +15,7 @@ interface InspoRow {
   vibe: string | null;
   image: string | null;
   added: number | string;
+  rating: number | null;
 }
 
 export function generateInspoId(): string {
@@ -24,6 +26,7 @@ function mapRowToInspo(row: InspoRow): InspoImage {
   return {
     id: row.id,
     vibe: row.vibe ?? "",
+    rating: row.rating ?? null,
     added: Number(row.added),
   };
 }
@@ -89,6 +92,14 @@ export const inspo = {
     });
     if (error) throw error;
 
-    return { id, vibe, added };
+    return { id, vibe, rating: null, added };
+  },
+
+  async setRating(id: string, rating: number | null): Promise<void> {
+    const { error } = await supabase
+      .from("inspo")
+      .update({ rating })
+      .eq("id", id);
+    if (error) throw error;
   },
 };

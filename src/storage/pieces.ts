@@ -25,6 +25,7 @@ export interface Piece {
   vibe: string;
   seasons: string[];
   fit: FitValue | null;
+  rating: number | null;
   createdAt: number;
 }
 
@@ -40,6 +41,7 @@ interface PieceRow {
   image: string | null;
   added: number | string;
   fit: string | null;
+  rating: number | null;
 }
 
 export function generatePieceId(): string {
@@ -89,6 +91,7 @@ function mapRowToPiece(row: PieceRow): Piece {
     vibe: row.vibe ?? "",
     seasons: Array.isArray(row.seasons) ? row.seasons : [],
     fit: normalizeFit(row.fit),
+    rating: row.rating ?? null,
     createdAt: Number(row.added),
   };
 }
@@ -138,6 +141,7 @@ export const pieces = {
       vibe: piece.vibe,
       seasons: piece.seasons,
       fit: piece.fit,
+      rating: piece.rating,
       added: piece.createdAt,
       ...(imageBase64 !== null ? { image: imageBase64 } : {}),
     });

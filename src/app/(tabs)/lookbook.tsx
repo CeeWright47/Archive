@@ -90,6 +90,22 @@ export default function LookbookScreen() {
     setRefreshing(false);
   }
 
+  async function handleRateInspo(id: string, rating: number | null) {
+    const previous = allInspo;
+    setAllInspo((current) =>
+      current.map((entry) => (entry.id === id ? { ...entry, rating } : entry)),
+    );
+    try {
+      await inspo.setRating(id, rating);
+    } catch (error) {
+      setAllInspo(previous);
+      Alert.alert(
+        "Couldn’t save rating",
+        error instanceof Error ? error.message : "Please try again.",
+      );
+    }
+  }
+
   async function handleAddInspiration() {
     setAddingInspo(true);
     try {
@@ -126,6 +142,7 @@ export default function LookbookScreen() {
         missing: result.missing ?? "",
         styleProfileId: result.style_profile_id,
         styleProfileName: result.style_profile_name,
+        rating: null,
         saved: Date.now(),
       };
       await fits.save(fit);
@@ -163,6 +180,7 @@ export default function LookbookScreen() {
         occasion: "",
         note: "",
         inInspo: false,
+        rating: null,
         added: Date.now(),
       };
       await outfits.save(outfit);
@@ -297,6 +315,7 @@ export default function LookbookScreen() {
           <InspoDetailSheet
             entry={expandedInspo}
             onClose={() => setExpandedInspoId(null)}
+            onRate={handleRateInspo}
           />
           <InspoActionSheet
             entry={inspoActionsEntry}
