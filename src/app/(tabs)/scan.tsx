@@ -6,20 +6,26 @@ import { ai, type ScanResult } from "@/ai";
 import { prepareAiImage } from "@/ai/image";
 import { BottomDock } from "@/components/BottomDock";
 import { PageTitle } from "@/components/PageTitle";
+import { PhotoSourceSheet } from "@/components/PhotoSourceSheet";
 import { pickImage } from "@/media/pickImage";
 import { wants, type Want } from "@/storage/wants";
 import { theme } from "@/theme/tokens";
 
 export default function ScanScreen() {
   const [dockHeight, setDockHeight] = useState(0);
+  const [choosingSource, setChoosingSource] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [result, setResult] = useState<ScanResult | null>(null);
   const [imageUri, setImageUri] = useState<string | null>(null);
 
-  async function handleScan() {
+  async function handlePickSource(source: "camera" | "library") {
+    setChoosingSource(false);
     setScanning(true);
     try {
-      const picked = await pickImage.fromLibrary();
+      const picked =
+        source === "camera"
+          ? await pickImage.fromCamera()
+          : await pickImage.fromLibrary();
       if (!picked) return;
       setImageUri(picked.uri);
       const image = await prepareAiImage(picked.uri);
@@ -79,9 +85,17 @@ export default function ScanScreen() {
         icon="camera-outline"
         label="Scan an item"
         accessibilityLabel="Scan an item"
-        onPress={handleScan}
+        onPress={() => setChoosingSource(true)}
         loading={scanning}
         onHeightChange={setDockHeight}
+      />
+
+      <PhotoSourceSheet
+        visible={choosingSource}
+        title="Scan an item"
+        onClose={() => setChoosingSource(false)}
+        onPickCamera={() => handlePickSource("camera")}
+        onPickLibrary={() => handlePickSource("library")}
       />
     </View>
   );
