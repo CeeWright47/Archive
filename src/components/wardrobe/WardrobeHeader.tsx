@@ -1,6 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
 import {
-    Animated,
     Pressable,
     StyleSheet,
     Text,
@@ -8,6 +7,10 @@ import {
     View,
     type LayoutChangeEvent,
 } from "react-native";
+import Animated, {
+    useAnimatedStyle,
+    type SharedValue,
+} from "react-native-reanimated";
 
 import { PIECE_CATEGORIES, type PieceCategory } from "@/storage/pieces";
 import { subcategoriesFor, type Subcategory } from "@/storage/subcategories";
@@ -29,11 +32,12 @@ interface WardrobeHeaderProps {
   onSortPress: () => void;
   filterActive?: boolean;
   freeRemaining?: number;
-  translateY: Animated.AnimatedInterpolation<number> | Animated.Value;
+  translateY: SharedValue<number>;
   onLayout: (event: LayoutChangeEvent) => void;
 }
 
-// Absolutely positioned so it can slide up out of view as the grid scrolls down.
+// Absolutely positioned so it can slide up out of view as the grid scrolls
+// beneath it. translateY is driven on the UI thread (see WardrobeScreen).
 export function WardrobeHeader({
   query,
   onQueryChange,
@@ -49,11 +53,12 @@ export function WardrobeHeader({
   translateY,
   onLayout,
 }: WardrobeHeaderProps) {
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: translateY.value }],
+  }));
+
   return (
-    <Animated.View
-      onLayout={onLayout}
-      style={[styles.header, { transform: [{ translateY }] }]}
-    >
+    <Animated.View onLayout={onLayout} style={[styles.header, animatedStyle]}>
       <View style={styles.topRow}>
         <View style={styles.searchWrap}>
           <Ionicons

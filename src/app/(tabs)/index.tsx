@@ -1,25 +1,33 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter, type Href } from "expo-router";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
     Alert,
-    Animated,
     StyleSheet,
     Text,
     View,
     type LayoutChangeEvent,
 } from "react-native";
+import Animated, {
+    useAnimatedScrollHandler,
+    useSharedValue,
+    withTiming,
+} from "react-native-reanimated";
 
-import { PieceLimitError } from "@/ai";
+import { ai, PieceLimitError } from "@/ai";
 import {
     FREE_PIECE_LIMIT,
     FREE_PIECE_WARNING_AT,
     catalogPiecesFromLibrary,
 } from "@/catalog/catalogPieces";
+import { ArchiveLoadingScreen } from "@/components/ArchiveLoadingScreen";
 import { BottomDock } from "@/components/BottomDock";
 import { UpgradeSheet } from "@/components/UpgradeSheet";
+import { ItemActionSheet } from "@/components/wardrobe/ItemActionSheet";
 import { PieceCard } from "@/components/wardrobe/PieceCard";
 import { PieceDetailSheet } from "@/components/wardrobe/PieceDetailSheet";
 import { SortSheet } from "@/components/wardrobe/SortSheet";
 import { WardrobeHeader } from "@/components/wardrobe/WardrobeHeader";
+import { fits, type Fit } from "@/storage/fits";
 import {
     ALL_PIECE_FITS,
     pieceFitsFor,
@@ -38,6 +46,8 @@ import {
     type WardrobeSort,
 } from "@/storage/wardrobeSort";
 import { theme } from "@/theme/tokens";
+
+const HEADER_SNAP_DURATION_MS = 220;
 
 function countBy<K extends string>(
   list: Piece[],
@@ -69,6 +79,7 @@ function matchesQuery(piece: Piece, query: string): boolean {
 }
 
 export default function WardrobeScreen() {
+  const router = useRouter();
   const [allPieces, setAllPieces] = useState<Piece[]>([]);
   const [selectedCategory, setSelectedCategory] =
     useState<PieceCategory | null>(null);
@@ -81,13 +92,73 @@ export default function WardrobeScreen() {
   const [outfitPieceIds, setOutfitPieceIds] = useState<string[][]>([]);
   const [selectedPieceId, setSelectedPieceId] = useState<string | null>(null);
   const [newPieceId, setNewPieceId] = useState<string | null>(null);
+  const [forceEditPieceId, setForceEditPieceId] = useState<string | null>(
+    null,
+  );
+  const [actionsPieceId, setActionsPieceId] = useState<string | null>(null);
+  const [buildingFitFor, setBuildingFitFor] = useState<Piece | null>(null);
   const [adding, setAdding] = useState(false);
   const [plan, setPlan] = useState<Plan>("free");
   const [upgradeOpen, setUpgradeOpen] = useState(false);
 
   const [headerHeight, setHeaderHeight] = useState(0);
   const [dockHeight, setDockHeight] = useState(0);
-  const scrollY = useRef(new Animated.Value(0)).current;
+
+  // 0 = header fully visible, -headerHeight = fully hidden. Driven entirely
+  // on the UI thread: translateY tracks the scroll delta 1:1 while clamped
+  // to that range, overscroll (contentOffset.y < 0 or past the bottom) is
+  // ignored rather than fed in as a delta, and a release/momentum-end snaps
+  // to whichever end is closer instead of resting mid-way.
+  const headerTranslateY = useSharedValue(0);
+  const headerHeightShared = useSharedValue(0);
+  const lastScrollY = useSharedValue(0);
+
+  useEffect(() => {
+    headerHeightShared.value = headerHeight;
+  }, [headerHeight, headerHeightShared]);
+
+  const snapHeader = () => {
+    "worklet";
+    const max = headerHeightShared.value;
+    if (max <= 0) return;
+    const shouldHide = headerTranslateY.value < -max / 2;
+    headerTranslateY.value = withTiming(shouldHide ? -max : 0, {
+      duration: HEADER_SNAP_DURATION_MS,
+    });
+  };
+
+  const scrollHandler = useAnimatedScrollHandler({
+    onScroll: (event) => {
+      const y = event.contentOffset.y;
+      const maxOffset = Math.max(
+        0,
+        event.contentSize.height - event.layoutMeasurement.height,
+      );
+      if (y <= 0) {
+        // At or past the top (including pull-down bounce) — fully shown.
+        headerTranslateY.value = 0;
+        lastScrollY.value = 0;
+        return;
+      }
+      if (y >= maxOffset) {
+        // Bottom bounce — don't move the header, but keep the baseline
+        // current so the next real delta (once the bounce settles) is sane.
+        lastScrollY.value = maxOffset;
+        return;
+      }
+      const delta = y - lastScrollY.value;
+      lastScrollY.value = y;
+      const max = headerHeightShared.value;
+      const next = headerTranslateY.value - delta;
+      headerTranslateY.value = Math.min(0, Math.max(-max, next));
+    },
+    onEndDrag: () => {
+      snapHeader();
+    },
+    onMomentumEnd: () => {
+      snapHeader();
+    },
+  });
 
   useEffect(() => {
     pieces.list().then(setAllPieces);
@@ -125,15 +196,6 @@ export default function WardrobeScreen() {
   const handleHeaderLayout = useCallback((event: LayoutChangeEvent) => {
     setHeaderHeight(Math.ceil(event.nativeEvent.layout.height));
   }, []);
-
-  // Header slides up by however far the list has scrolled, capped at its own height.
-  const headerTranslateY = useMemo(
-    () =>
-      headerHeight > 0
-        ? Animated.multiply(Animated.diffClamp(scrollY, 0, headerHeight), -1)
-        : new Animated.Value(0),
-    [scrollY, headerHeight],
-  );
 
   const handleAddPieces = useCallback(async () => {
     if (plan === "free" && allPieces.length >= FREE_PIECE_LIMIT) {
@@ -176,7 +238,83 @@ export default function WardrobeScreen() {
     setAllPieces((current) => current.filter((p) => p.id !== id));
     setSelectedPieceId(null);
     setNewPieceId(null);
+    setForceEditPieceId(null);
   }, []);
+
+  const confirmRemoveFromActions = useCallback(
+    (piece: Piece) => {
+      Alert.alert(
+        `Remove ${piece.name}?`,
+        "This also removes it from any saved fits.",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Remove",
+            style: "destructive",
+            onPress: () => handleDeletePiece(piece.id),
+          },
+        ],
+      );
+    },
+    [handleDeletePiece],
+  );
+
+  const handleEditFromActions = useCallback((piece: Piece) => {
+    setForceEditPieceId(piece.id);
+    setSelectedPieceId(piece.id);
+  }, []);
+
+  const handleShowPairings = useCallback(
+    async (piece: Piece) => {
+      try {
+        const result = await ai.suggestPairings(piece.id);
+        const names = allPieces
+          .filter((candidate) => result.pair_ids.includes(candidate.id))
+          .map((candidate) => candidate.name)
+          .join(" · ");
+        Alert.alert(
+          "What it pairs with",
+          [result.sentence, names].filter(Boolean).join("\n\n"),
+        );
+      } catch (error) {
+        Alert.alert(
+          "Couldn’t find pairings",
+          error instanceof Error ? error.message : "Please try again.",
+        );
+      }
+    },
+    [allPieces],
+  );
+
+  const handleBuildFitAround = useCallback(
+    async (piece: Piece) => {
+      setBuildingFitFor(piece);
+      try {
+        const result = await ai.generateFit("", piece.id);
+        const fit: Fit = {
+          id: `fit_${Date.now().toString(36)}`,
+          title: result.title,
+          occasion: "Everyday",
+          pieceIds: [...result.piece_ids, ...result.optional_piece_ids],
+          why: result.why,
+          missing: result.missing ?? "",
+          styleProfileId: result.style_profile_id,
+          styleProfileName: result.style_profile_name,
+          saved: Date.now(),
+        };
+        await fits.save(fit);
+        router.push(`/outfits/${fit.id}` as Href);
+      } catch (error) {
+        Alert.alert(
+          "Couldn’t generate a fit",
+          error instanceof Error ? error.message : "Please try again.",
+        );
+      } finally {
+        setBuildingFitFor(null);
+      }
+    },
+    [router],
+  );
 
   const searched = useMemo(
     () => allPieces.filter((piece) => matchesQuery(piece, query.trim())),
@@ -219,6 +357,10 @@ export default function WardrobeScreen() {
 
   const selectedPiece =
     allPieces.find((piece) => piece.id === selectedPieceId) ?? null;
+  const actionsPiece =
+    allPieces.find((piece) => piece.id === actionsPieceId) ?? null;
+
+  if (buildingFitFor) return <ArchiveLoadingScreen showTip={false} />;
 
   return (
     <View style={styles.container}>
@@ -249,24 +391,17 @@ export default function WardrobeScreen() {
         columnWrapperStyle={styles.column}
         contentContainerStyle={[
           styles.grid,
-          {
-            paddingTop: headerHeight + theme.spacing.sm,
-            paddingBottom: dockHeight,
-          },
+          { paddingBottom: dockHeight },
         ]}
         scrollEventThrottle={16}
-        onScroll={Animated.event(
-          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          {
-            useNativeDriver: true,
-          },
-        )}
+        onScroll={scrollHandler}
         keyboardDismissMode="on-drag"
         renderItem={({ item }) => (
           <PieceCard
             piece={item}
             showSubcategory={selectedCategory !== null}
             onPress={() => setSelectedPieceId(item.id)}
+            onActionsPress={() => setActionsPieceId(item.id)}
           />
         )}
         ListEmptyComponent={
@@ -306,13 +441,36 @@ export default function WardrobeScreen() {
       <PieceDetailSheet
         piece={selectedPiece}
         allPieces={allPieces}
-        startInEditMode={selectedPieceId === newPieceId}
+        startInEditMode={
+          selectedPieceId === newPieceId || selectedPieceId === forceEditPieceId
+        }
         onClose={() => {
           setSelectedPieceId(null);
           setNewPieceId(null);
+          setForceEditPieceId(null);
         }}
         onSave={handleSavePiece}
         onDelete={handleDeletePiece}
+      />
+      <ItemActionSheet
+        piece={actionsPiece}
+        onClose={() => setActionsPieceId(null)}
+        onBuildFit={(piece) => {
+          setActionsPieceId(null);
+          handleBuildFitAround(piece);
+        }}
+        onShowPairings={(piece) => {
+          setActionsPieceId(null);
+          handleShowPairings(piece);
+        }}
+        onEdit={(piece) => {
+          setActionsPieceId(null);
+          handleEditFromActions(piece);
+        }}
+        onRemove={(piece) => {
+          setActionsPieceId(null);
+          confirmRemoveFromActions(piece);
+        }}
       />
       <UpgradeSheet
         visible={upgradeOpen}
@@ -329,6 +487,7 @@ const styles = StyleSheet.create({
   },
   grid: {
     paddingHorizontal: theme.spacing.md,
+    paddingTop: theme.spacing.sm,
     gap: theme.spacing.md,
     flexGrow: 1,
   },

@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
 
+import { fits } from "./fits";
 import { normalizeFit, type FitValue } from "./fitVocabulary";
 import { images } from "./images";
 import { normalizeSubcategory, type Subcategory } from "./subcategories";
@@ -144,6 +145,16 @@ export const pieces = {
   },
 
   async remove(id: string): Promise<void> {
+    const allFits = await fits.list();
+    const affectedFits = allFits.filter((fit) => fit.pieceIds.includes(id));
+    await Promise.all(
+      affectedFits.map((fit) =>
+        fits.save({
+          ...fit,
+          pieceIds: fit.pieceIds.filter((pieceId) => pieceId !== id),
+        }),
+      ),
+    );
     const { error } = await supabase.from("pieces").delete().eq("id", id);
     if (error) throw error;
     images.delete(id);

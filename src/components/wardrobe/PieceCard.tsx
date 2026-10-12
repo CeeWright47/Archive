@@ -1,3 +1,4 @@
+import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
@@ -7,6 +8,7 @@ import { theme } from "@/theme/tokens";
 interface PieceCardProps {
   piece: Piece;
   onPress: () => void;
+  onActionsPress: () => void;
   /** With a category filter active the category is redundant, so show the subcategory instead. */
   showSubcategory?: boolean;
 }
@@ -14,6 +16,7 @@ interface PieceCardProps {
 export function PieceCard({
   piece,
   onPress,
+  onActionsPress,
   showSubcategory = false,
 }: PieceCardProps) {
   const uri = imageUriFor(piece);
@@ -35,6 +38,19 @@ export function PieceCard({
         ) : (
           <View style={[styles.image, styles.imageFallback]} />
         )}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={`More actions for ${piece.name}`}
+          onPress={onActionsPress}
+          hitSlop={4}
+          style={styles.actionsButton}
+        >
+          <Ionicons
+            name="ellipsis-horizontal"
+            size={18}
+            color={theme.colors.background}
+          />
+        </Pressable>
       </View>
       <Text selectable={false} style={styles.category} numberOfLines={1}>
         {label.toUpperCase()}
@@ -61,6 +77,17 @@ const styles = StyleSheet.create({
     borderRadius: theme.radii.md,
     overflow: "hidden",
     backgroundColor: theme.colors.backgroundElevated,
+  },
+  actionsButton: {
+    position: "absolute",
+    top: theme.spacing.xs,
+    right: theme.spacing.xs,
+    width: 36,
+    height: 36,
+    borderRadius: theme.radii.pill,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.45)",
   },
   image: {
     width: "100%",
