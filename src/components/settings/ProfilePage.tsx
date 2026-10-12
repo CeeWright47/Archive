@@ -1,5 +1,8 @@
+import { useNavigation } from "expo-router";
+import { useEffect } from "react";
 import {
     ActivityIndicator,
+    Alert,
     Keyboard,
     Pressable,
     ScrollView,
@@ -18,6 +21,47 @@ export interface ProfileSaveAction {
   saving: boolean;
 }
 
+// Intercepts back navigation (header button, hardware back, swipe gesture —
+// all funnel through "beforeRemove") while there are unsaved changes.
+function useUnsavedChangesGuard(action?: ProfileSaveAction) {
+  const navigation = useNavigation();
+
+  useEffect(() => {
+    if (!action) return undefined;
+    const listener = (event: {
+      preventDefault: () => void;
+      data: { action: Parameters<typeof navigation.dispatch>[0] };
+    }) => {
+      if (!action.dirty) return;
+      event.preventDefault();
+      Alert.alert(
+        "Unsaved changes",
+        "Save your changes before leaving?",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Discard",
+            style: "destructive",
+            onPress: () => navigation.dispatch(event.data.action),
+          },
+          {
+            text: "Save",
+            onPress: () => {
+              void Promise.resolve(action.save()).then(() =>
+                navigation.dispatch(event.data.action),
+              );
+            },
+          },
+        ],
+      );
+    };
+    navigation.addListener("beforeRemove", listener);
+    return () => {
+      navigation.removeListener("beforeRemove", listener);
+    };
+  }, [navigation, action]);
+}
+
 export function ProfilePage({
   loading,
   error,
@@ -30,6 +74,7 @@ export function ProfilePage({
   saveAction?: ProfileSaveAction;
 }) {
   const insets = useSafeAreaInsets();
+  useUnsavedChangesGuard(saveAction);
   if (loading) {
     return (
       <View style={styles.center}>
@@ -56,7 +101,7 @@ export function ProfilePage({
       >
         {children}
       </ScrollView>
-      {saveAction ? <ProfileSaveDock action={saveAction} /> : null}
+      {saveAction?.dirty ? <ProfileSaveDock action={saveAction} /> : null}
     </View>
   );
 }
@@ -77,7 +122,7 @@ export function ProfileSaveDock({ action }: { action: ProfileSaveAction }) {
       <PrimaryButton
         label={action.saving ? "Saving..." : "Save"}
         onPress={handleSave}
-        disabled={!action.dirty || action.saving}
+        disabled={action.saving}
       />
     </View>
   );

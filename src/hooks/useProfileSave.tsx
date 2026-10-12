@@ -36,6 +36,11 @@ export function useSaveStatus() {
 
 type Updater<T> = Partial<T> | ((previous: T) => T);
 
+// Plain JSON-shaped preferences/profile data — structural comparison is safe.
+function sameValue<T>(a: T, b: T): boolean {
+  return JSON.stringify(a) === JSON.stringify(b);
+}
+
 export interface DraftSave<T> {
   value: T | null;
   update: (patch: Updater<T>) => void;
@@ -54,6 +59,7 @@ export function useDraftSave<T extends object>(
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const valueRef = useRef<T | null>(initial);
+  const originalRef = useRef<T | null>(initial);
   const revision = useRef(0);
   const savingRef = useRef(false);
   const { markSaved } = useSaveStatus();
@@ -61,6 +67,7 @@ export function useDraftSave<T extends object>(
   useEffect(() => {
     if (initial !== null && valueRef.current === null) {
       valueRef.current = initial;
+      originalRef.current = initial;
       setValue(initial);
     }
   }, [initial]);
@@ -75,7 +82,7 @@ export function useDraftSave<T extends object>(
     valueRef.current = next;
     revision.current += 1;
     setValue(next);
-    setDirty(true);
+    setDirty(!sameValue(next, originalRef.current));
     setError(null);
   }, []);
 
@@ -87,7 +94,10 @@ export function useDraftSave<T extends object>(
     setSaving(true);
     try {
       await write(next);
-      if (revision.current === savingRevision) setDirty(false);
+      if (revision.current === savingRevision) {
+        originalRef.current = next;
+        setDirty(false);
+      }
       setError(null);
       markSaved();
     } catch (saveError) {
