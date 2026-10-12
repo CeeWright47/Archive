@@ -438,7 +438,7 @@ function InspoCard({
           <Ionicons
             name="ellipsis-horizontal"
             size={18}
-            color={theme.colors.background}
+            color={theme.colors.text}
           />
         </Pressable>
       </View>

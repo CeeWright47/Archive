@@ -92,11 +92,11 @@ export default function OutfitDetailScreen() {
       <Stack.Screen options={{ title: fit.title || "Lookbook" }} />
       <View style={styles.headingRow}>
         <View style={styles.headingCopy}>
-          <Text style={styles.occasion}>{fit.occasion || "Everyday"}</Text>
-          <Text style={styles.title}>{fit.title || "Untitled fit"}</Text>
-          <Text style={styles.styleProfile}>
+          <Text style={styles.occasion}>
+            {fit.occasion || "Everyday"} ·{" "}
             {fit.styleProfileName ?? "Assigning style"}
           </Text>
+          <Text style={styles.title}>{fit.title || "Untitled fit"}</Text>
         </View>
         <Pressable
           accessibilityRole="button"
@@ -112,27 +112,31 @@ export default function OutfitDetailScreen() {
         </Pressable>
       </View>
 
-      <View style={styles.pieceGrid}>
+      <ScrollView
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        contentContainerStyle={styles.pieceCarousel}
+      >
         {linkedPieces.map((piece) => {
           const uri = imageUriFor(piece);
           return (
-            <View key={piece.id} style={styles.piece}>
+            <View key={piece.id} style={styles.pieceThumbWrapper}>
               {uri ? (
                 <Image
                   source={{ uri }}
-                  style={styles.pieceImage}
+                  style={styles.pieceThumb}
                   contentFit="cover"
                 />
               ) : (
-                <View style={[styles.pieceImage, styles.imageFallback]} />
+                <View style={[styles.pieceThumb, styles.imageFallback]} />
               )}
-              <Text style={styles.pieceName} numberOfLines={2}>
+              <Text style={styles.pieceThumbName} numberOfLines={2}>
                 {piece.name}
               </Text>
             </View>
           );
         })}
-      </View>
+      </ScrollView>
 
       {fit.why ? (
         <View style={styles.section}>
@@ -187,17 +191,6 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.title1.fontSize,
     lineHeight: theme.typography.title1.lineHeight,
   },
-  styleProfile: {
-    alignSelf: "flex-start",
-    color: theme.colors.text,
-    fontSize: theme.typography.footnote.fontSize,
-    lineHeight: theme.typography.footnote.lineHeight,
-    paddingHorizontal: theme.spacing.xs,
-    paddingVertical: theme.spacing.xxs,
-    borderRadius: theme.radii.pill,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: theme.colors.accentMuted,
-  },
   deleteButton: {
     width: 44,
     height: 44,
@@ -207,16 +200,19 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.danger,
     borderRadius: theme.radii.md,
   },
-  pieceGrid: { flexDirection: "row", flexWrap: "wrap", gap: theme.spacing.sm },
-  piece: { width: "47%", gap: theme.spacing.xs },
-  pieceImage: {
-    width: "100%",
+  pieceCarousel: {
+    gap: theme.spacing.sm,
+    paddingRight: theme.spacing.md,
+  },
+  pieceThumbWrapper: { width: 148, gap: theme.spacing.xs },
+  pieceThumb: {
+    width: 148,
     aspectRatio: 4 / 5,
-    borderRadius: theme.radii.md,
+    borderRadius: theme.radii.lg,
   },
   imageFallback: { backgroundColor: theme.colors.backgroundElevated },
-  pieceName: {
-    color: theme.colors.text,
+  pieceThumbName: {
+    color: theme.colors.textMuted,
     fontSize: theme.typography.footnote.fontSize,
     lineHeight: theme.typography.footnote.lineHeight,
   },
