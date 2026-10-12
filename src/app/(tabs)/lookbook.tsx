@@ -14,11 +14,9 @@ import {
 
 import { ai } from "@/ai";
 import { prepareAiImage } from "@/ai/image";
-import { AddInspirationButton } from "@/components/lookbook/AddInspirationButton";
-import { AddOutfitButton } from "@/components/outfits/AddOutfitButton";
+import { BottomDock } from "@/components/BottomDock";
 import { OutfitCard } from "@/components/outfits/OutfitCard";
 import { OutfitDetailSheet } from "@/components/outfits/OutfitDetailSheet";
-import { PageTitle } from "@/components/PageTitle";
 import { pickImage, type PickedImage } from "@/media/pickImage";
 import { images } from "@/storage/images";
 import { imageUriForInspo, inspo, type InspoImage } from "@/storage/inspo";
@@ -39,6 +37,7 @@ function today(): string {
 
 export default function LookbookScreen() {
   const [activeTab, setActiveTab] = useState<LookbookTab>("inspiration");
+  const [dockHeight, setDockHeight] = useState(0);
 
   const [allInspo, setAllInspo] = useState<InspoImage[]>([]);
   const [loading, setLoading] = useState(true);
@@ -199,9 +198,6 @@ export default function LookbookScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.titleRow}>
-        <PageTitle>Lookbook</PageTitle>
-      </View>
       <View style={styles.tabBar}>
         <TabButton
           label="Inspiration"
@@ -222,7 +218,10 @@ export default function LookbookScreen() {
             keyExtractor={(entry) => entry.id}
             numColumns={2}
             columnWrapperStyle={styles.column}
-            contentContainerStyle={styles.content}
+            contentContainerStyle={[
+              styles.content,
+              { paddingBottom: dockHeight },
+            ]}
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}
@@ -235,9 +234,13 @@ export default function LookbookScreen() {
               <Text style={styles.emptyBody}>No inspiration images yet.</Text>
             }
           />
-          <AddInspirationButton
+          <BottomDock
+            icon="images-outline"
+            label="Add inspiration"
+            accessibilityLabel="Add inspiration photos"
             onPress={handleAddInspiration}
             loading={addingInspo}
+            onHeightChange={setDockHeight}
           />
         </>
       ) : (
@@ -250,7 +253,10 @@ export default function LookbookScreen() {
             keyExtractor={(outfit) => outfit.id}
             numColumns={2}
             columnWrapperStyle={styles.column}
-            contentContainerStyle={styles.content}
+            contentContainerStyle={[
+              styles.content,
+              { paddingBottom: dockHeight },
+            ]}
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}
@@ -274,9 +280,13 @@ export default function LookbookScreen() {
             }
           />
 
-          <AddOutfitButton
+          <BottomDock
+            icon="camera-outline"
+            label="Log an outfit"
+            accessibilityLabel="Log an outfit"
             onPress={() => setChoosingSource(true)}
             loading={addingOutfit}
+            onHeightChange={setDockHeight}
           />
 
           <Modal
@@ -384,10 +394,6 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: theme.colors.background,
   },
-  titleRow: {
-    paddingHorizontal: theme.spacing.md,
-    paddingTop: theme.spacing.sm,
-  },
   tabBar: {
     flexDirection: "row",
     gap: theme.spacing.xs,
@@ -426,7 +432,6 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: theme.spacing.md,
-    paddingBottom: theme.spacing.xxxl,
     gap: theme.spacing.md,
     flexGrow: 1,
   },

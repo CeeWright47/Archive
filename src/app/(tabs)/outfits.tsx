@@ -13,9 +13,9 @@ import {
     TextInput,
     View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ai } from "@/ai";
+import { BottomDock } from "@/components/BottomDock";
 import { PageTitle } from "@/components/PageTitle";
 import { fits, type Fit } from "@/storage/fits";
 import { imageUriFor, pieces, type Piece } from "@/storage/pieces";
@@ -23,8 +23,8 @@ import { theme } from "@/theme/tokens";
 
 export default function OutfitsScreen() {
   const router = useRouter();
-  const insets = useSafeAreaInsets();
   const [occasion, setOccasion] = useState("");
+  const [dockHeight, setDockHeight] = useState(0);
   const [allFits, setAllFits] = useState<Fit[]>([]);
   const [allPieces, setAllPieces] = useState<Piece[]>([]);
   const [loading, setLoading] = useState(true);
@@ -143,7 +143,7 @@ export default function OutfitsScreen() {
   return (
     <View style={styles.container}>
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingBottom: dockHeight }]}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -159,6 +159,10 @@ export default function OutfitsScreen() {
           onChangeText={setOccasion}
           placeholder="What’s the occasion?"
           placeholderTextColor={theme.colors.textMuted}
+          returnKeyType="go"
+          onSubmitEditing={() => {
+            if (occasion.trim()) handleGenerateFit();
+          }}
         />
 
         <View style={styles.sectionHeader}>
@@ -185,31 +189,14 @@ export default function OutfitsScreen() {
         )}
       </ScrollView>
 
-      <View
-        style={[
-          styles.dock,
-          { marginBottom: insets.bottom + theme.spacing.xs },
-        ]}
-      >
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Generate fit"
-          disabled={generating}
-          onPress={handleGenerateFit}
-          style={styles.generateButton}
-        >
-          {generating ? (
-            <ActivityIndicator color={theme.colors.background} />
-          ) : (
-            <Ionicons
-              name="sparkles-outline"
-              size={theme.spacing.lg}
-              color={theme.colors.background}
-            />
-          )}
-          <Text style={styles.generateLabel}>Generate fit</Text>
-        </Pressable>
-      </View>
+      <BottomDock
+        icon="sparkles-outline"
+        label="Generate fit"
+        accessibilityLabel="Generate fit"
+        onPress={handleGenerateFit}
+        loading={generating}
+        onHeightChange={setDockHeight}
+      />
     </View>
   );
 }
@@ -291,7 +278,6 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: theme.spacing.md,
-    paddingBottom: theme.spacing.xxxl,
     gap: theme.spacing.sm,
   },
   center: {
@@ -389,27 +375,5 @@ const styles = StyleSheet.create({
   morePiecesText: {
     fontSize: theme.typography.caption1.fontSize,
     color: theme.colors.textMuted,
-  },
-  dock: {
-    position: "absolute",
-    left: theme.spacing.md,
-    right: theme.spacing.md,
-    bottom: 0,
-    backgroundColor: theme.colors.background,
-  },
-  generateButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: theme.spacing.xs,
-    paddingVertical: theme.spacing.sm,
-    borderRadius: theme.radii.pill,
-    backgroundColor: theme.colors.accent,
-  },
-  generateLabel: {
-    fontSize: theme.typography.headline.fontSize,
-    lineHeight: theme.typography.headline.lineHeight,
-    fontWeight: theme.typography.headline.fontWeight,
-    color: theme.colors.background,
   },
 });

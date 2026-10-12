@@ -11,9 +11,9 @@ import {
     Text,
     View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ai } from "@/ai";
+import { BottomDock } from "@/components/BottomDock";
 import { PageTitle } from "@/components/PageTitle";
 import {
     settings,
@@ -28,7 +28,7 @@ import {
 import { theme } from "@/theme/tokens";
 
 export default function InsightsScreen() {
-  const insets = useSafeAreaInsets();
+  const [dockHeight, setDockHeight] = useState(0);
   const [allWants, setAllWants] = useState<Want[]>([]);
   const [closetGaps, setClosetGaps] = useState<ClosetGaps | null>(null);
   const [loading, setLoading] = useState(true);
@@ -152,7 +152,7 @@ export default function InsightsScreen() {
   return (
     <View style={styles.container}>
       <ScrollView
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingBottom: dockHeight }]}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -218,31 +218,14 @@ export default function InsightsScreen() {
         )}
       </ScrollView>
 
-      <View
-        style={[
-          styles.dock,
-          { marginBottom: insets.bottom + theme.spacing.xs },
-        ]}
-      >
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Re-run analysis"
-          disabled={rerunning}
-          onPress={handleRerunAnalysis}
-          style={styles.rerunButton}
-        >
-          {rerunning ? (
-            <ActivityIndicator color={theme.colors.background} />
-          ) : (
-            <Ionicons
-              name="refresh-outline"
-              size={theme.spacing.lg}
-              color={theme.colors.background}
-            />
-          )}
-          <Text style={styles.rerunLabel}>Re-run analysis</Text>
-        </Pressable>
-      </View>
+      <BottomDock
+        icon="refresh-outline"
+        label="Re-run analysis"
+        accessibilityLabel="Re-run analysis"
+        onPress={handleRerunAnalysis}
+        loading={rerunning}
+        onHeightChange={setDockHeight}
+      />
     </View>
   );
 }
@@ -362,7 +345,6 @@ const styles = StyleSheet.create({
   },
   content: {
     padding: theme.spacing.md,
-    paddingBottom: theme.spacing.xxxl,
     gap: theme.spacing.sm,
   },
   center: {
@@ -535,27 +517,5 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.footnote.fontSize,
     lineHeight: theme.typography.footnote.lineHeight,
     color: theme.colors.text,
-  },
-  dock: {
-    position: "absolute",
-    left: theme.spacing.md,
-    right: theme.spacing.md,
-    bottom: 0,
-    backgroundColor: theme.colors.background,
-  },
-  rerunButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: theme.spacing.xs,
-    paddingVertical: theme.spacing.sm,
-    borderRadius: theme.radii.pill,
-    backgroundColor: theme.colors.accent,
-  },
-  rerunLabel: {
-    fontSize: theme.typography.headline.fontSize,
-    lineHeight: theme.typography.headline.lineHeight,
-    fontWeight: theme.typography.headline.fontWeight,
-    color: theme.colors.background,
   },
 });

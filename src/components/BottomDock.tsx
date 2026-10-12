@@ -5,26 +5,41 @@ import {
     StyleSheet,
     Text,
     View,
+    type LayoutChangeEvent,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { theme } from "@/theme/tokens";
 
-interface AddPiecesButtonProps {
+interface BottomDockProps {
+  icon: keyof typeof Ionicons.glyphMap;
+  label: string;
+  accessibilityLabel: string;
   onPress: () => void;
   loading?: boolean;
+  onHeightChange?: (height: number) => void;
 }
 
-export function AddPiecesButton({ onPress, loading }: AddPiecesButtonProps) {
-  const insets = useSafeAreaInsets();
+// Docked flush above the tab bar. The Tabs screen area already stops at the
+// tab bar's top edge (tabBarStyle isn't absolutely positioned), so bottom: 0
+// here lands exactly there — no extra tab-bar-height or safe-area offset
+// needed on top of that.
+export function BottomDock({
+  icon,
+  label,
+  accessibilityLabel,
+  onPress,
+  loading,
+  onHeightChange,
+}: BottomDockProps) {
+  const handleLayout = (event: LayoutChangeEvent) => {
+    onHeightChange?.(Math.ceil(event.nativeEvent.layout.height));
+  };
 
   return (
-    <View
-      style={[styles.dock, { marginBottom: insets.bottom + theme.spacing.xs }]}
-    >
+    <View style={styles.container} onLayout={handleLayout}>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel="Add pieces from photos"
+        accessibilityLabel={accessibilityLabel}
         disabled={loading}
         onPress={onPress}
         style={styles.button}
@@ -33,25 +48,29 @@ export function AddPiecesButton({ onPress, loading }: AddPiecesButtonProps) {
           <ActivityIndicator color={theme.colors.background} />
         ) : (
           <Ionicons
-            name="add-circle-outline"
+            name={icon}
             size={theme.spacing.lg}
             color={theme.colors.background}
           />
         )}
-        <Text style={styles.label}>Add pieces from photos</Text>
+        <Text style={styles.label}>{label}</Text>
       </Pressable>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  dock: {
+  container: {
     position: "absolute",
-    left: theme.spacing.md,
-    right: theme.spacing.md,
+    left: 0,
+    right: 0,
     bottom: 0,
+    paddingHorizontal: theme.spacing.md,
+    paddingTop: theme.spacing.sm,
+    paddingBottom: theme.spacing.sm,
     backgroundColor: theme.colors.background,
-    opacity: 1,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: theme.colors.border,
   },
   button: {
     flexDirection: "row",
@@ -61,7 +80,6 @@ const styles = StyleSheet.create({
     paddingVertical: theme.spacing.sm,
     borderRadius: theme.radii.pill,
     backgroundColor: theme.colors.accent,
-    opacity: 1,
   },
   label: {
     fontSize: theme.typography.headline.fontSize,

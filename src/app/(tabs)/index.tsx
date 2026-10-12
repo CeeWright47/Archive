@@ -14,9 +14,8 @@ import {
     FREE_PIECE_WARNING_AT,
     catalogPiecesFromLibrary,
 } from "@/catalog/catalogPieces";
-import { PageTitle } from "@/components/PageTitle";
+import { BottomDock } from "@/components/BottomDock";
 import { UpgradeSheet } from "@/components/UpgradeSheet";
-import { AddPiecesButton } from "@/components/wardrobe/AddPiecesButton";
 import { PieceCard } from "@/components/wardrobe/PieceCard";
 import { PieceDetailSheet } from "@/components/wardrobe/PieceDetailSheet";
 import { SortSheet } from "@/components/wardrobe/SortSheet";
@@ -87,6 +86,7 @@ export default function WardrobeScreen() {
   const [upgradeOpen, setUpgradeOpen] = useState(false);
 
   const [headerHeight, setHeaderHeight] = useState(0);
+  const [dockHeight, setDockHeight] = useState(0);
   const scrollY = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -249,7 +249,10 @@ export default function WardrobeScreen() {
         columnWrapperStyle={styles.column}
         contentContainerStyle={[
           styles.grid,
-          { paddingTop: headerHeight + theme.spacing.sm },
+          {
+            paddingTop: headerHeight + theme.spacing.sm,
+            paddingBottom: dockHeight,
+          },
         ]}
         scrollEventThrottle={16}
         onScroll={Animated.event(
@@ -266,7 +269,6 @@ export default function WardrobeScreen() {
             onPress={() => setSelectedPieceId(item.id)}
           />
         )}
-        ListHeaderComponent={<PageTitle>Wardrobe</PageTitle>}
         ListEmptyComponent={
           <View style={styles.empty}>
             <Text style={styles.emptyHeading}>
@@ -281,7 +283,14 @@ export default function WardrobeScreen() {
         }
       />
 
-      <AddPiecesButton onPress={handleAddPieces} loading={adding} />
+      <BottomDock
+        icon="add-circle-outline"
+        label="Add pieces from photos"
+        accessibilityLabel="Add pieces from photos"
+        onPress={handleAddPieces}
+        loading={adding}
+        onHeightChange={setDockHeight}
+      />
 
       <SortSheet
         visible={sortOpen}
@@ -320,7 +329,6 @@ const styles = StyleSheet.create({
   },
   grid: {
     paddingHorizontal: theme.spacing.md,
-    paddingBottom: theme.spacing.xxxl,
     gap: theme.spacing.md,
     flexGrow: 1,
   },

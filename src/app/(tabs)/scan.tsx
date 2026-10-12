@@ -1,25 +1,17 @@
-import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { useState } from "react";
-import {
-    ActivityIndicator,
-    Alert,
-    Pressable,
-    StyleSheet,
-    Text,
-    View,
-} from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
+import { Alert, StyleSheet, Text, View } from "react-native";
 
 import { ai, type ScanResult } from "@/ai";
 import { prepareAiImage } from "@/ai/image";
+import { BottomDock } from "@/components/BottomDock";
 import { PageTitle } from "@/components/PageTitle";
 import { pickImage } from "@/media/pickImage";
 import { wants, type Want } from "@/storage/wants";
 import { theme } from "@/theme/tokens";
 
 export default function ScanScreen() {
-  const insets = useSafeAreaInsets();
+  const [dockHeight, setDockHeight] = useState(0);
   const [scanning, setScanning] = useState(false);
   const [result, setResult] = useState<ScanResult | null>(null);
   const [imageUri, setImageUri] = useState<string | null>(null);
@@ -64,7 +56,7 @@ export default function ScanScreen() {
           your actual closet.
         </Text>
       </View>
-      <View style={styles.content}>
+      <View style={[styles.content, { paddingBottom: dockHeight }]}>
         {imageUri && (
           <Image
             source={{ uri: imageUri }}
@@ -83,31 +75,14 @@ export default function ScanScreen() {
         )}
       </View>
 
-      <View
-        style={[
-          styles.dock,
-          { marginBottom: insets.bottom + theme.spacing.xs },
-        ]}
-      >
-        <Pressable
-          accessibilityRole="button"
-          accessibilityLabel="Scan an item"
-          disabled={scanning}
-          onPress={handleScan}
-          style={styles.scanButton}
-        >
-          {scanning ? (
-            <ActivityIndicator color={theme.colors.background} />
-          ) : (
-            <Ionicons
-              name="camera-outline"
-              size={theme.spacing.lg}
-              color={theme.colors.background}
-            />
-          )}
-          <Text style={styles.scanLabel}>Scan an item</Text>
-        </Pressable>
-      </View>
+      <BottomDock
+        icon="camera-outline"
+        label="Scan an item"
+        accessibilityLabel="Scan an item"
+        onPress={handleScan}
+        loading={scanning}
+        onHeightChange={setDockHeight}
+      />
     </View>
   );
 }
@@ -164,26 +139,4 @@ const styles = StyleSheet.create({
     lineHeight: theme.typography.body.lineHeight,
   },
   price: { color: theme.colors.text },
-  dock: {
-    position: "absolute",
-    left: theme.spacing.md,
-    right: theme.spacing.md,
-    bottom: 0,
-    backgroundColor: theme.colors.background,
-  },
-  scanButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: theme.spacing.xs,
-    paddingVertical: theme.spacing.sm,
-    borderRadius: theme.radii.pill,
-    backgroundColor: theme.colors.accent,
-  },
-  scanLabel: {
-    fontSize: theme.typography.headline.fontSize,
-    lineHeight: theme.typography.headline.lineHeight,
-    fontWeight: theme.typography.headline.fontWeight,
-    color: theme.colors.background,
-  },
 });
