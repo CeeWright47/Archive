@@ -182,8 +182,12 @@ export const ai = {
       outfitIds,
       checkOnly: true,
     }),
-  generateFit: (occasion: string, anchorPieceId?: string) =>
-    invoke<GeneratedFitResult>("generate-fit", { occasion, anchorPieceId }),
+  generateFit: (occasion: string, anchorPieceId?: string, inspoId?: string) =>
+    invoke<GeneratedFitResult>("generate-fit", {
+      occasion,
+      anchorPieceId,
+      inspoId,
+    }),
   assignExistingFitStyles: () =>
     invoke<{ assignments: FitStyleAssignment[] }>("generate-fit", {
       classifyExisting: true,

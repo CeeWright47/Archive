@@ -1,5 +1,11 @@
 import { getStyleContext, normalizePieceCategory } from "../_shared/archive.ts";
-import { askAnthropic, FunctionError, serveWorkflow } from "../_shared/runtime.ts";
+import {
+    askAnthropic,
+    FunctionError,
+    imageBlock,
+    serveWorkflow,
+    type AnthropicContentBlock,
+} from "../_shared/runtime.ts";
 
 const NO_MATCHING_STYLE = "No matching style";
 
@@ -196,9 +202,27 @@ serveWorkflow(async ({ body, supabase, user }) => {
   const anchor = anchorId
     ? pieces.find((piece) => piece.id === anchorId)
     : null;
-  const inspoNotes = inspo.length
-    ? `\n\nInspo board (aesthetics they're drawn to — let these steer silhouette and styling):\n${inspo.map((item) => `- ${item.vibe ?? ""}`).join("\n")}`
+  const inspoId = typeof body.inspoId === "string" ? body.inspoId : null;
+  const targetInspo = inspoId
+    ? inspo.find((item) => item.id === inspoId)
+    : null;
+  if (inspoId && !targetInspo) {
+    throw new FunctionError(
+      "invalid_request",
+      "Couldn't find that inspiration image.",
+      404,
+    );
+  }
+  const referenceBlocks: AnthropicContentBlock[] = targetInspo?.image
+    ? [imageBlock(targetInspo.image)]
+    : [];
+  const referenceNote = targetInspo
+    ? `\n\n— REFERENCE PHOTO —\nA reference outfit photo is attached above. Build this fit from the closet to resemble it as closely as the closet allows — matching silhouette, color palette, and overall vibe.${targetInspo.vibe ? ` Vibe notes: ${targetInspo.vibe}` : ""} Be honest in "missing" if the closet doesn't have pieces that can reasonably approximate this look — don't force a mismatched combination just to resemble the photo.`
     : "";
+  const inspoNotes =
+    !targetInspo && inspo.length
+      ? `\n\nInspo board (aesthetics they're drawn to — let these steer silhouette and styling):\n${inspo.map((item) => `- ${item.vibe ?? ""}`).join("\n")}`
+      : "";
   const clothing = pieces.filter(
     (piece) => normalizePieceCategory(piece.category) !== "Accessories",
   );
@@ -219,7 +243,7 @@ serveWorkflow(async ({ body, supabase, user }) => {
         )
         .join("\n")
     : "(none)";
-  const basePrompt = `You are a personal stylist with sharp editorial instincts. Style profile: ${styleText}${inspoNotes}${anchor ? `\n\n— MANDATORY ANCHOR —\nThis outfit MUST be built around [${anchor.id}] "${anchor.name}" (${anchor.category}). It MUST appear in piece_ids. Let its color palette and silhouette drive every other selection.` : ""}\n\n— CLOTHING (build the fit exclusively from these) —\n${clothingSummary}\n\n— ACCESSORIES: hats, caps, bags, jewelry (do NOT put these in piece_ids; only suggest one in optional_piece_ids if it truly completes this specific look — default is an empty array) —\n${accessorySummary}\n\nBuild one outfit for: "${occasion || "an everyday fit"}".\n\n1. Pick 3-5 clothing pieces that work together for the occasion, style profile, and color story. Rotate the closet — avoid defaulting to the same pieces every time.\n2. The fit MUST include at least one bottom, one pair of shoes, and a top or outerwear piece.\n3. Only after the core fit is done: decide if any single accessory genuinely elevates it. If uncertain, leave optional_piece_ids empty.\n\nRespond ONLY with JSON, no markdown: {"title": "evocative 3-5 word fit name", "piece_ids": ["clothing ids only — absolutely no accessories here"], "optional_piece_ids": ["one accessory id if it genuinely elevates this look, otherwise []"], "why": "2-3 sentences on why this core combination works", "missing": "one piece not in the closet that would elevate this fit, or null"}`;
+  const basePrompt = `You are a personal stylist with sharp editorial instincts. Style profile: ${styleText}${inspoNotes}${referenceNote}${anchor ? `\n\n— MANDATORY ANCHOR —\nThis outfit MUST be built around [${anchor.id}] "${anchor.name}" (${anchor.category}). It MUST appear in piece_ids. Let its color palette and silhouette drive every other selection.` : ""}\n\n— CLOTHING (build the fit exclusively from these) —\n${clothingSummary}\n\n— ACCESSORIES: hats, caps, bags, jewelry (do NOT put these in piece_ids; only suggest one in optional_piece_ids if it truly completes this specific look — default is an empty array) —\n${accessorySummary}\n\nBuild one outfit for: "${occasion || "an everyday fit"}".\n\n1. Pick 3-5 clothing pieces that work together for the occasion, style profile, and color story. Rotate the closet — avoid defaulting to the same pieces every time.\n2. The fit MUST include at least one bottom, one pair of shoes, and a top or outerwear piece.\n3. Only after the core fit is done: decide if any single accessory genuinely elevates it. If uncertain, leave optional_piece_ids empty.\n\nRespond ONLY with JSON, no markdown: {"title": "evocative 3-5 word fit name", "piece_ids": ["clothing ids only — absolutely no accessories here"], "optional_piece_ids": ["one accessory id if it genuinely elevates this look, otherwise []"], "why": "2-3 sentences on why this core combination works", "missing": "one piece not in the closet that would elevate this fit, or null"}`;
 
   let result: Record<string, unknown> = {};
   let missing: string[] = [];
@@ -230,7 +254,7 @@ serveWorkflow(async ({ body, supabase, user }) => {
         : "";
     result = await askAnthropic(
       "",
-      [{ type: "text", text: `${basePrompt}${retryNote}` }],
+      [...referenceBlocks, { type: "text", text: `${basePrompt}${retryNote}` }],
       1200,
     );
     missing = missingFitParts(

@@ -1,10 +1,11 @@
+import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
+import { useRouter, type Href } from "expo-router";
 import { useCallback, useEffect, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
     FlatList,
-    Modal,
     Pressable,
     RefreshControl,
     StyleSheet,
@@ -14,10 +15,15 @@ import {
 
 import { ai } from "@/ai";
 import { prepareAiImage } from "@/ai/image";
+import { ArchiveLoadingScreen } from "@/components/ArchiveLoadingScreen";
 import { BottomDock } from "@/components/BottomDock";
+import { InspoActionSheet } from "@/components/lookbook/InspoActionSheet";
+import { InspoDetailSheet } from "@/components/lookbook/InspoDetailSheet";
 import { OutfitCard } from "@/components/outfits/OutfitCard";
 import { OutfitDetailSheet } from "@/components/outfits/OutfitDetailSheet";
+import { PhotoSourceSheet } from "@/components/PhotoSourceSheet";
 import { pickImage, type PickedImage } from "@/media/pickImage";
+import { fits, type Fit } from "@/storage/fits";
 import { images } from "@/storage/images";
 import { imageUriForInspo, inspo, type InspoImage } from "@/storage/inspo";
 import {
@@ -36,6 +42,7 @@ function today(): string {
 }
 
 export default function LookbookScreen() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<LookbookTab>("inspiration");
   const [dockHeight, setDockHeight] = useState(0);
 
@@ -44,6 +51,11 @@ export default function LookbookScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [addingInspo, setAddingInspo] = useState(false);
+  const [expandedInspoId, setExpandedInspoId] = useState<string | null>(null);
+  const [inspoActionsId, setInspoActionsId] = useState<string | null>(null);
+  const [generatingFitFor, setGeneratingFitFor] = useState<InspoImage | null>(
+    null,
+  );
 
   const [allOutfits, setAllOutfits] = useState<Outfit[]>([]);
   const [allPieces, setAllPieces] = useState<Piece[]>([]);
@@ -98,6 +110,33 @@ export default function LookbookScreen() {
       );
     } finally {
       setAddingInspo(false);
+    }
+  }
+
+  async function handleGenerateFromInspo(entry: InspoImage) {
+    setGeneratingFitFor(entry);
+    try {
+      const result = await ai.generateFit("", undefined, entry.id);
+      const fit: Fit = {
+        id: `fit_${Date.now().toString(36)}`,
+        title: result.title,
+        occasion: "Everyday",
+        pieceIds: [...result.piece_ids, ...result.optional_piece_ids],
+        why: result.why,
+        missing: result.missing ?? "",
+        styleProfileId: result.style_profile_id,
+        styleProfileName: result.style_profile_name,
+        saved: Date.now(),
+      };
+      await fits.save(fit);
+      router.push(`/outfits/${fit.id}` as Href);
+    } catch (error) {
+      Alert.alert(
+        "Couldn’t generate a fit",
+        error instanceof Error ? error.message : "Please try again.",
+      );
+    } finally {
+      setGeneratingFitFor(null);
     }
   }
 
@@ -192,9 +231,15 @@ export default function LookbookScreen() {
     );
   }
 
+  if (generatingFitFor) return <ArchiveLoadingScreen showTip={false} />;
+
   const sortedOutfits = [...allOutfits].sort((a, b) => b.added - a.added);
   const selectedOutfit =
     allOutfits.find((outfit) => outfit.id === selectedOutfitId) ?? null;
+  const expandedInspo =
+    allInspo.find((entry) => entry.id === expandedInspoId) ?? null;
+  const inspoActionsEntry =
+    allInspo.find((entry) => entry.id === inspoActionsId) ?? null;
 
   return (
     <View style={styles.container}>
@@ -229,7 +274,13 @@ export default function LookbookScreen() {
                 tintColor={theme.colors.accent}
               />
             }
-            renderItem={({ item }) => <InspoCard entry={item} />}
+            renderItem={({ item }) => (
+              <InspoCard
+                entry={item}
+                onPress={() => setExpandedInspoId(item.id)}
+                onActionsPress={() => setInspoActionsId(item.id)}
+              />
+            )}
             ListEmptyComponent={
               <Text style={styles.emptyBody}>No inspiration images yet.</Text>
             }
@@ -241,6 +292,19 @@ export default function LookbookScreen() {
             onPress={handleAddInspiration}
             loading={addingInspo}
             onHeightChange={setDockHeight}
+          />
+
+          <InspoDetailSheet
+            entry={expandedInspo}
+            onClose={() => setExpandedInspoId(null)}
+          />
+          <InspoActionSheet
+            entry={inspoActionsEntry}
+            onClose={() => setInspoActionsId(null)}
+            onGenerateFit={(entry) => {
+              setInspoActionsId(null);
+              handleGenerateFromInspo(entry);
+            }}
           />
         </>
       ) : (
@@ -289,41 +353,13 @@ export default function LookbookScreen() {
             onHeightChange={setDockHeight}
           />
 
-          <Modal
+          <PhotoSourceSheet
             visible={choosingSource}
-            animationType="fade"
-            transparent
-            onRequestClose={() => setChoosingSource(false)}
-          >
-            <View style={styles.sourceModal}>
-              <Pressable
-                accessibilityRole="button"
-                accessibilityLabel="Close photo source chooser"
-                style={styles.sourceBackdrop}
-                onPress={() => setChoosingSource(false)}
-              />
-              <View style={styles.sourceSheet}>
-                <Text style={styles.sourceHeading}>Add outfit</Text>
-                <Text style={styles.sourceBody}>
-                  Choose where to get your photo.
-                </Text>
-                <Pressable
-                  accessibilityRole="button"
-                  style={styles.sourcePrimaryButton}
-                  onPress={() => handlePickOutfitSource("camera")}
-                >
-                  <Text style={styles.sourcePrimaryLabel}>Take photo</Text>
-                </Pressable>
-                <Pressable
-                  accessibilityRole="button"
-                  style={styles.sourceSecondaryButton}
-                  onPress={() => handlePickOutfitSource("library")}
-                >
-                  <Text style={styles.sourceSecondaryLabel}>Photo library</Text>
-                </Pressable>
-              </View>
-            </View>
-          </Modal>
+            title="Add outfit"
+            onClose={() => setChoosingSource(false)}
+            onPickCamera={() => handlePickOutfitSource("camera")}
+            onPickLibrary={() => handlePickOutfitSource("library")}
+          />
 
           <OutfitDetailSheet
             outfit={selectedOutfit}
@@ -365,10 +401,23 @@ function TabButton({
   );
 }
 
-function InspoCard({ entry }: { entry: InspoImage }) {
+function InspoCard({
+  entry,
+  onPress,
+  onActionsPress,
+}: {
+  entry: InspoImage;
+  onPress: () => void;
+  onActionsPress: () => void;
+}) {
   const uri = imageUriForInspo(entry);
   return (
-    <View style={styles.inspoCard}>
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel="View inspiration photo"
+      onPress={onPress}
+      style={styles.inspoCard}
+    >
       <View style={styles.inspoImageWrapper}>
         {uri ? (
           <Image
@@ -379,13 +428,26 @@ function InspoCard({ entry }: { entry: InspoImage }) {
         ) : (
           <View style={[styles.inspoImage, styles.inspoImageFallback]} />
         )}
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="More actions for this inspiration photo"
+          onPress={onActionsPress}
+          hitSlop={4}
+          style={styles.inspoActionsButton}
+        >
+          <Ionicons
+            name="ellipsis-horizontal"
+            size={18}
+            color={theme.colors.background}
+          />
+        </Pressable>
       </View>
       {entry.vibe.length > 0 && (
         <Text style={styles.inspoVibe} numberOfLines={3}>
           {entry.vibe}
         </Text>
       )}
-    </View>
+    </Pressable>
   );
 }
 
@@ -473,6 +535,17 @@ const styles = StyleSheet.create({
     overflow: "hidden",
     backgroundColor: theme.colors.backgroundElevated,
   },
+  inspoActionsButton: {
+    position: "absolute",
+    top: theme.spacing.xs,
+    right: theme.spacing.xs,
+    width: 36,
+    height: 36,
+    borderRadius: theme.radii.pill,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: "rgba(0, 0, 0, 0.45)",
+  },
   inspoImage: {
     width: "100%",
     aspectRatio: 3 / 4,
@@ -485,59 +558,5 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.caption1.fontSize,
     lineHeight: theme.typography.caption1.lineHeight,
     color: theme.colors.textMuted,
-  },
-  sourceModal: {
-    flex: 1,
-    justifyContent: "flex-end",
-  },
-  sourceBackdrop: {
-    position: "absolute",
-    top: theme.spacing.none,
-    right: theme.spacing.none,
-    bottom: theme.spacing.none,
-    left: theme.spacing.none,
-  },
-  sourceSheet: {
-    backgroundColor: theme.colors.backgroundElevated,
-    borderTopLeftRadius: theme.radii.xl,
-    borderTopRightRadius: theme.radii.xl,
-    padding: theme.spacing.md,
-    gap: theme.spacing.sm,
-  },
-  sourceHeading: {
-    fontSize: theme.typography.title3.fontSize,
-    lineHeight: theme.typography.title3.lineHeight,
-    fontWeight: theme.typography.title3.fontWeight,
-    color: theme.colors.text,
-  },
-  sourceBody: {
-    fontSize: theme.typography.body.fontSize,
-    lineHeight: theme.typography.body.lineHeight,
-    color: theme.colors.textMuted,
-  },
-  sourcePrimaryButton: {
-    alignItems: "center",
-    paddingVertical: theme.spacing.sm,
-    borderRadius: theme.radii.pill,
-    backgroundColor: theme.colors.accent,
-  },
-  sourcePrimaryLabel: {
-    fontSize: theme.typography.headline.fontSize,
-    lineHeight: theme.typography.headline.lineHeight,
-    fontWeight: theme.typography.headline.fontWeight,
-    color: theme.colors.background,
-  },
-  sourceSecondaryButton: {
-    alignItems: "center",
-    paddingVertical: theme.spacing.sm,
-    borderRadius: theme.radii.pill,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: theme.colors.border,
-  },
-  sourceSecondaryLabel: {
-    fontSize: theme.typography.headline.fontSize,
-    lineHeight: theme.typography.headline.lineHeight,
-    fontWeight: theme.typography.headline.fontWeight,
-    color: theme.colors.text,
   },
 });
