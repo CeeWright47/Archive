@@ -1,4 +1,5 @@
 export { Chip, ChipGroup, type ChipVariant, type TriState } from "./Chip";
+export { CityTypeahead, type CityValue } from "./CityTypeahead";
 export { MultilineField, NumericField, TextField } from "./Fields";
 export {
     Divider,

@@ -46,6 +46,14 @@
           "photosPermission": "Archive uses your photo library to add pieces and outfits.",
           "cameraPermission": "Archive uses your camera to add pieces and outfits."
         }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Archive uses your location to show local weather and set your climate city.",
+          "locationAlwaysAndWhenInUsePermission": false,
+          "locationAlwaysPermission": false
+        }
       ]
     ],
     "experiments": {

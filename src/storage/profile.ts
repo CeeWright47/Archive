@@ -90,7 +90,12 @@ export interface Preferences {
   stores: string[];
   budget: Partial<Record<BudgetCategory, BudgetTier>>;
   units: Units;
-  climate: { zone: ClimateZone | null; city: string | null };
+  climate: {
+    zone: ClimateZone | null;
+    city: string | null;
+    lat: number | null;
+    lon: number | null;
+  };
   autoTag: boolean;
   autoAssess: boolean;
   onboardingCompleted: boolean;
@@ -145,7 +150,7 @@ export const EMPTY_PREFERENCES: Preferences = {
   stores: [],
   budget: {},
   units: "imperial",
-  climate: { zone: null, city: null },
+  climate: { zone: null, city: null, lat: null, lon: null },
   autoTag: true,
   autoAssess: false,
   onboardingCompleted: false,
@@ -269,6 +274,8 @@ function mapPreferences(row: PreferencesRow): Preferences {
     climate: {
       zone: oneOf(climate.zone, CLIMATE_ZONES),
       city: str(climate.city),
+      lat: num(climate.lat),
+      lon: num(climate.lon),
     },
     autoTag:
       typeof app.auto_tag === "boolean"
