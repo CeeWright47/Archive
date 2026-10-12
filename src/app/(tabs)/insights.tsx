@@ -167,6 +167,35 @@ export default function InsightsScreen() {
         </Text>
 
         <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Gaps in the archive</Text>
+          <Text style={styles.sectionCount}>
+            {acquiredCount}/{gapItems.length} acquired
+          </Text>
+        </View>
+
+        {closetGaps && closetGaps.verdict.length > 0 && (
+          <Text style={styles.verdict}>{closetGaps.verdict}</Text>
+        )}
+
+        {gapItems.length === 0 ? (
+          <Text style={styles.emptyBody}>No closet gaps identified yet.</Text>
+        ) : (
+          <View style={styles.list}>
+            {gapItems.map((item, index) => (
+              <GapRow
+                key={`${item.item}-${index}`}
+                item={item}
+                onToggle={() => handleToggleGapItem(index, !item.owned)}
+              />
+            ))}
+          </View>
+        )}
+
+        {closetGaps && closetGaps.stopBuying.length > 0 && (
+          <Text style={styles.stopBuying}>{closetGaps.stopBuying}</Text>
+        )}
+
+        <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Spotted in the wild</Text>
           <Text style={styles.sectionCount}>
             {boughtCount}/{allWants.length} bought
@@ -186,35 +215,6 @@ export default function InsightsScreen() {
               />
             ))}
           </View>
-        )}
-
-        {closetGaps && closetGaps.verdict.length > 0 && (
-          <Text style={styles.verdict}>{closetGaps.verdict}</Text>
-        )}
-
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Gaps in the archive</Text>
-          <Text style={styles.sectionCount}>
-            {acquiredCount}/{gapItems.length} acquired
-          </Text>
-        </View>
-
-        {gapItems.length === 0 ? (
-          <Text style={styles.emptyBody}>No closet gaps identified yet.</Text>
-        ) : (
-          <View style={styles.list}>
-            {gapItems.map((item, index) => (
-              <GapRow
-                key={`${item.item}-${index}`}
-                item={item}
-                onToggle={() => handleToggleGapItem(index, !item.owned)}
-              />
-            ))}
-          </View>
-        )}
-
-        {closetGaps && closetGaps.stopBuying.length > 0 && (
-          <Text style={styles.stopBuying}>{closetGaps.stopBuying}</Text>
         )}
       </ScrollView>
 
