@@ -2,7 +2,6 @@ import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { useEffect, useState, type ReactNode } from "react";
 import {
-    ActivityIndicator,
     Alert,
     Pressable,
     ScrollView,
@@ -12,7 +11,6 @@ import {
     View,
 } from "react-native";
 
-import { ai, type PairingResult } from "@/ai";
 import { BottomSheet } from "@/components/BottomSheet";
 import { ChipGroup } from "@/components/settings";
 import { pieceFitsFor, type PieceFit } from "@/storage/fitVocabulary";
@@ -28,7 +26,6 @@ import { CategoryChips } from "./CategoryChips";
 
 interface PieceDetailSheetProps {
   piece: Piece | null;
-  allPieces: Piece[];
   startInEditMode?: boolean;
   onClose: () => void;
   onSave: (piece: Piece) => Promise<void> | void;
@@ -37,7 +34,6 @@ interface PieceDetailSheetProps {
 
 export function PieceDetailSheet({
   piece,
-  allPieces,
   startInEditMode = false,
   onClose,
   onSave,
@@ -45,13 +41,10 @@ export function PieceDetailSheet({
 }: PieceDetailSheetProps) {
   const [editing, setEditing] = useState(startInEditMode);
   const [draft, setDraft] = useState(piece);
-  const [pairing, setPairing] = useState<PairingResult | null>(null);
-  const [pairingBusy, setPairingBusy] = useState(false);
 
   useEffect(() => {
     setDraft(piece);
     setEditing(startInEditMode);
-    setPairing(null);
   }, [piece, startInEditMode]);
 
   if (!piece || !draft) return null;
@@ -84,26 +77,20 @@ export function PieceDetailSheet({
     ]);
   }
 
-  async function handlePairing() {
-    setPairingBusy(true);
-    try {
-      setPairing(await ai.suggestPairings(currentPiece.id));
-    } catch (error) {
-      Alert.alert(
-        "Couldn’t find pairings",
-        error instanceof Error ? error.message : "Please try again.",
-      );
-    } finally {
-      setPairingBusy(false);
-    }
-  }
-
   return (
     <BottomSheet onClose={onClose}>
       <ScrollView
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
         >
+          {!editing && (
+            <View style={styles.titleRow}>
+              <Text style={styles.title} numberOfLines={2}>
+                {piece.name}
+              </Text>
+            </View>
+          )}
+
           <View style={styles.imageWrapper}>
             {uri ? (
               <Image source={{ uri }} style={styles.image} contentFit="cover" />
@@ -178,94 +165,24 @@ export function PieceDetailSheet({
                 />
               </Field>
             </View>
-          ) : (
-            <View style={styles.fields}>
-              <Text style={styles.category}>
-                {[piece.category, piece.subcategory]
-                  .filter(Boolean)
-                  .join(" · ")
-                  .toUpperCase()}
-              </Text>
-              <Text style={styles.name}>{piece.name}</Text>
-              {fitOptions && (
-                <Field label="Fit">
-                  <ChipGroup
-                    mode="single"
-                    options={fitOptions}
-                    value={draft.fit as PieceFit | null}
-                    onChange={handleFitChange}
-                  />
-                </Field>
-              )}
-              <Field label="Color">
-                <Text style={styles.value}>{piece.color || "—"}</Text>
-              </Field>
-              <Field label="Material">
-                <Text style={styles.value}>{piece.material || "—"}</Text>
-              </Field>
-            </View>
-          )}
+          ) : null}
 
-          {!editing && (
-            <View style={styles.pairing}>
-              <Pressable
-                accessibilityRole="button"
-                disabled={pairingBusy}
-                onPress={handlePairing}
-                style={styles.pairingButton}
-              >
-                {pairingBusy ? (
-                  <ActivityIndicator color={theme.colors.accent} />
-                ) : (
-                  <Ionicons
-                    name="git-compare-outline"
-                    size={18}
-                    color={theme.colors.accent}
-                  />
-                )}
-                <Text style={styles.pairingButtonLabel}>
-                  What it pairs with
-                </Text>
-              </Pressable>
-              {pairing && (
-                <View style={styles.pairingResult}>
-                  <Text style={styles.pairingSentence}>{pairing.sentence}</Text>
-                  <Text style={styles.pairingNames}>
-                    {allPieces
-                      .filter((candidate) =>
-                        pairing.pair_ids.includes(candidate.id),
-                      )
-                      .map((candidate) => candidate.name)
-                      .join(" · ")}
-                  </Text>
-                </View>
-              )}
-            </View>
-          )}
-
-          <View style={styles.actions}>
-            {editing ? (
+          {editing && (
+            <View style={styles.actions}>
               <ActionButton
                 label="Save"
                 icon="checkmark"
                 onPress={handleSave}
                 primary
               />
-            ) : (
               <ActionButton
-                label="Edit"
-                icon="pencil"
-                onPress={() => setEditing(true)}
-                primary
+                label="Delete"
+                icon="trash-outline"
+                onPress={handleDelete}
+                destructive
               />
-            )}
-            <ActionButton
-              label="Delete"
-              icon="trash-outline"
-              onPress={handleDelete}
-              destructive
-            />
-          </View>
+            </View>
+          )}
         </ScrollView>
     </BottomSheet>
   );
@@ -332,6 +249,16 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.md,
     gap: theme.spacing.md,
   },
+  titleRow: {
+    paddingTop: theme.spacing.xs,
+    paddingRight: theme.spacing.xxl,
+  },
+  title: {
+    fontFamily: theme.fonts.serif,
+    fontSize: theme.typography.title3.fontSize,
+    lineHeight: theme.typography.title3.lineHeight,
+    color: theme.colors.text,
+  },
   imageWrapper: {
     borderRadius: theme.radii.lg,
     overflow: "hidden",
@@ -347,19 +274,6 @@ const styles = StyleSheet.create({
   fields: {
     gap: theme.spacing.sm,
   },
-  category: {
-    fontSize: theme.typography.footnote.fontSize,
-    lineHeight: theme.typography.footnote.lineHeight,
-    color: theme.colors.accent,
-    fontWeight: theme.typography.headline.fontWeight,
-    letterSpacing: 0.5,
-  },
-  name: {
-    fontSize: theme.typography.title3.fontSize,
-    lineHeight: theme.typography.title3.lineHeight,
-    fontWeight: theme.typography.title3.fontWeight,
-    color: theme.colors.text,
-  },
   field: {
     gap: theme.spacing.xxs,
   },
@@ -367,11 +281,6 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.caption1.fontSize,
     lineHeight: theme.typography.caption1.lineHeight,
     color: theme.colors.textMuted,
-  },
-  value: {
-    fontSize: theme.typography.body.fontSize,
-    lineHeight: theme.typography.body.lineHeight,
-    color: theme.colors.text,
   },
   input: {
     fontSize: theme.typography.body.fontSize,
@@ -388,40 +297,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     gap: theme.spacing.sm,
     paddingBottom: theme.spacing.md,
-  },
-  pairing: {
-    gap: theme.spacing.xs,
-  },
-  pairingButton: {
-    minHeight: 44,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    gap: theme.spacing.xs,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: theme.colors.accent,
-    borderRadius: theme.radii.md,
-  },
-  pairingButtonLabel: {
-    color: theme.colors.accent,
-    fontSize: theme.typography.headline.fontSize,
-    fontWeight: theme.typography.headline.fontWeight,
-  },
-  pairingResult: {
-    gap: theme.spacing.xxs,
-    padding: theme.spacing.sm,
-    borderRadius: theme.radii.md,
-    backgroundColor: theme.colors.background,
-  },
-  pairingSentence: {
-    color: theme.colors.text,
-    fontSize: theme.typography.body.fontSize,
-    lineHeight: theme.typography.body.lineHeight,
-  },
-  pairingNames: {
-    color: theme.colors.textMuted,
-    fontSize: theme.typography.footnote.fontSize,
-    lineHeight: theme.typography.footnote.lineHeight,
   },
   actionButton: {
     flex: 1,

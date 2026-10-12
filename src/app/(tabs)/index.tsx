@@ -440,7 +440,6 @@ export default function WardrobeScreen() {
 
       <PieceDetailSheet
         piece={selectedPiece}
-        allPieces={allPieces}
         startInEditMode={
           selectedPieceId === newPieceId || selectedPieceId === forceEditPieceId
         }
