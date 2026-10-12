@@ -1,5 +1,5 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Tabs } from "expo-router";
+import { Tabs, usePathname } from "expo-router";
 import { View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
@@ -14,15 +14,25 @@ const TAB_ICONS: Record<string, keyof typeof Ionicons.glyphMap> = {
   lookbook: "book-outline",
 };
 
+// Wardrobe keeps the "Archive" wordmark; every other tab shows its own title.
+const TAB_TITLES: Record<string, string | null> = {
+  "/": null,
+  "/outfits": "Outfits",
+  "/scan": "Scan",
+  "/insights": "Insights",
+  "/lookbook": "Lookbook",
+};
+
 const TAB_ICON_SIZE = theme.spacing.lg; // 24pt
 const TAB_BAR_CONTENT_HEIGHT = theme.spacing.xxxl; // 64pt, room for icon + label
 
 export default function TabsLayout() {
   const insets = useSafeAreaInsets();
+  const pathname = usePathname();
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.background }}>
-      <AppBar />
+      <AppBar title={TAB_TITLES[pathname] ?? undefined} />
       <Tabs
         screenOptions={({ route }) => ({
           headerShown: false,

@@ -12,9 +12,9 @@ import { storage } from "@/storage";
 import { runMigrations } from "@/storage/migrations";
 import { pieces } from "@/storage/pieces";
 import {
-    profileStore,
-    type Preferences,
-    type UserProfile,
+  profileStore,
+  type Preferences,
+  type UserProfile,
 } from "@/storage/profile";
 import { theme } from "@/theme/tokens";
 

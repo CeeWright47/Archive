@@ -7,14 +7,14 @@ import { theme } from '@/theme/tokens';
 
 const BAR_HEIGHT = 48;
 
-export function AppBar() {
+export function AppBar({ title }: { title?: string }) {
   const router = useRouter();
   const insets = useSafeAreaInsets();
 
   return (
     <View style={[styles.container, { paddingTop: insets.top }]}>
       <View style={styles.row}>
-        <Text style={styles.wordmark}>Archive</Text>
+        <Text style={styles.wordmark}>{title ?? "Archive"}</Text>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Open profile"

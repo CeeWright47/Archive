@@ -1,5 +1,6 @@
 import { Stack } from "expo-router";
 
+import { BackButton } from "@/components/BackButton";
 import { theme } from "@/theme/tokens";
 
 export default function OutfitDetailLayout() {
@@ -11,7 +12,7 @@ export default function OutfitDetailLayout() {
         headerTintColor: theme.colors.text,
         headerShadowVisible: false,
         headerTitleAlign: "left",
-        headerBackButtonDisplayMode: "minimal",
+        headerLeft: () => <BackButton />,
         headerTitleStyle: {
           fontFamily: theme.fonts.serif,
           fontSize: theme.typography.title3.fontSize,

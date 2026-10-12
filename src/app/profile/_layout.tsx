@@ -1,5 +1,6 @@
 import { Stack } from "expo-router";
 
+import { BackButton } from "@/components/BackButton";
 import { SavedIndicator } from "@/components/settings";
 import { SaveStatusProvider } from "@/hooks/useProfileSave";
 import { theme } from "@/theme/tokens";
@@ -30,14 +31,14 @@ export default function ProfileLayout() {
           headerShadowVisible: false,
           headerTintColor: theme.colors.text,
           headerTitleAlign: "left",
-          headerBackButtonDisplayMode: "minimal",
+          headerLeft: () => <BackButton />,
           headerTitleStyle: {
             fontFamily: theme.fonts.serif,
             fontSize: theme.typography.title3.fontSize,
             fontWeight: theme.typography.title3.fontWeight,
             color: theme.colors.text,
           },
-          headerRight: () => <SavedIndicator />,
+          headerRight: route.name === "assessment" ? undefined : () => <SavedIndicator />,
           contentStyle: { backgroundColor: theme.colors.background },
         })}
       />
