@@ -1,4 +1,9 @@
-import { askAnthropic, imageBlock, serveWorkflow } from "../_shared/runtime.ts";
+import {
+    askAnthropic,
+    FunctionError,
+    imageBlock,
+    serveWorkflow,
+} from "../_shared/runtime.ts";
 
 const CATEGORIES = ["top", "bottom", "shoes", "outerwear", "accessory"];
 const FREE_PIECE_LIMIT = 50;
@@ -20,11 +25,11 @@ serveWorkflow(async ({ body, supabase, user }) => {
   if (countError) throw countError;
   const pieceCount = count ?? 0;
   if ((profile?.plan ?? "free") === "free" && pieceCount >= FREE_PIECE_LIMIT) {
-    return {
-      limit_reached: true,
-      piece_count: pieceCount,
-      limit: FREE_PIECE_LIMIT,
-    };
+    throw new FunctionError(
+      "piece_limit_reached",
+      "Your free wardrobe includes up to 50 pieces.",
+      403,
+    );
   }
 
   return askAnthropic("", [

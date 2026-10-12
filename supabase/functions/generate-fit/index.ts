@@ -1,5 +1,5 @@
-import { getStyleContext } from "../_shared/archive.ts";
-import { askAnthropic, serveWorkflow } from "../_shared/runtime.ts";
+import { getStyleContext, normalizePieceCategory } from "../_shared/archive.ts";
+import { askAnthropic, FunctionError, serveWorkflow } from "../_shared/runtime.ts";
 
 const NO_MATCHING_STYLE = "No matching style";
 
@@ -34,6 +34,31 @@ function strings(value: unknown): string[] {
   return Array.isArray(value)
     ? value.filter((item): item is string => typeof item === "string")
     : [];
+}
+
+const MAX_GENERATE_ATTEMPTS = 2;
+
+// A wearable fit needs a bottom and shoes, plus something on top — accessories
+// don't count toward any of these.
+function missingFitParts(
+  pieceIds: string[],
+  pieces: { id: string; category: string | null }[],
+): string[] {
+  const categoryById = new Map(
+    pieces.map((piece) => [piece.id, normalizePieceCategory(piece.category)]),
+  );
+  const categories = new Set(
+    pieceIds
+      .map((id) => categoryById.get(id))
+      .filter((category): category is string => Boolean(category)),
+  );
+  const missing: string[] = [];
+  if (!categories.has("Bottoms")) missing.push("a bottom");
+  if (!categories.has("Shoes")) missing.push("shoes");
+  if (!categories.has("Tops") && !categories.has("Outerwear")) {
+    missing.push("a top or outerwear piece");
+  }
+  return missing;
 }
 
 async function getCurrentProfiles(
@@ -174,8 +199,12 @@ serveWorkflow(async ({ body, supabase, user }) => {
   const inspoNotes = inspo.length
     ? `\n\nInspo board (aesthetics they're drawn to — let these steer silhouette and styling):\n${inspo.map((item) => `- ${item.vibe ?? ""}`).join("\n")}`
     : "";
-  const clothing = pieces.filter((piece) => piece.category !== "accessory");
-  const accessories = pieces.filter((piece) => piece.category === "accessory");
+  const clothing = pieces.filter(
+    (piece) => normalizePieceCategory(piece.category) !== "Accessories",
+  );
+  const accessories = pieces.filter(
+    (piece) => normalizePieceCategory(piece.category) === "Accessories",
+  );
   const clothingSummary = clothing
     .map(
       (piece) =>
@@ -190,16 +219,33 @@ serveWorkflow(async ({ body, supabase, user }) => {
         )
         .join("\n")
     : "(none)";
-  const result = await askAnthropic(
-    "",
-    [
-      {
-        type: "text",
-        text: `You are a personal stylist with sharp editorial instincts. Style profile: ${styleText}${inspoNotes}${anchor ? `\n\n— MANDATORY ANCHOR —\nThis outfit MUST be built around [${anchor.id}] "${anchor.name}" (${anchor.category}). It MUST appear in piece_ids. Let its color palette and silhouette drive every other selection.` : ""}\n\n— CLOTHING (build the fit exclusively from these) —\n${clothingSummary}\n\n— ACCESSORIES: hats, caps, bags, jewelry (do NOT put these in piece_ids; only suggest one in optional_piece_ids if it truly completes this specific look — default is an empty array) —\n${accessorySummary}\n\nBuild one outfit for: "${occasion || "an everyday fit"}".\n\n1. Pick 3-5 clothing pieces that work together for the occasion, style profile, and color story. Rotate the closet — avoid defaulting to the same pieces every time.\n2. Only after the core fit is done: decide if any single accessory genuinely elevates it. If uncertain, leave optional_piece_ids empty.\n\nRespond ONLY with JSON, no markdown: {"title": "evocative 3-5 word fit name", "piece_ids": ["clothing ids only — absolutely no accessories here"], "optional_piece_ids": ["one accessory id if it genuinely elevates this look, otherwise []"], "why": "2-3 sentences on why this core combination works", "missing": "one piece not in the closet that would elevate this fit, or null"}`,
-      },
-    ],
-    1200,
-  );
+  const basePrompt = `You are a personal stylist with sharp editorial instincts. Style profile: ${styleText}${inspoNotes}${anchor ? `\n\n— MANDATORY ANCHOR —\nThis outfit MUST be built around [${anchor.id}] "${anchor.name}" (${anchor.category}). It MUST appear in piece_ids. Let its color palette and silhouette drive every other selection.` : ""}\n\n— CLOTHING (build the fit exclusively from these) —\n${clothingSummary}\n\n— ACCESSORIES: hats, caps, bags, jewelry (do NOT put these in piece_ids; only suggest one in optional_piece_ids if it truly completes this specific look — default is an empty array) —\n${accessorySummary}\n\nBuild one outfit for: "${occasion || "an everyday fit"}".\n\n1. Pick 3-5 clothing pieces that work together for the occasion, style profile, and color story. Rotate the closet — avoid defaulting to the same pieces every time.\n2. The fit MUST include at least one bottom, one pair of shoes, and a top or outerwear piece.\n3. Only after the core fit is done: decide if any single accessory genuinely elevates it. If uncertain, leave optional_piece_ids empty.\n\nRespond ONLY with JSON, no markdown: {"title": "evocative 3-5 word fit name", "piece_ids": ["clothing ids only — absolutely no accessories here"], "optional_piece_ids": ["one accessory id if it genuinely elevates this look, otherwise []"], "why": "2-3 sentences on why this core combination works", "missing": "one piece not in the closet that would elevate this fit, or null"}`;
+
+  let result: Record<string, unknown> = {};
+  let missing: string[] = [];
+  for (let attempt = 0; attempt < MAX_GENERATE_ATTEMPTS; attempt++) {
+    const retryNote =
+      attempt > 0
+        ? `\n\n— RETRY —\nYour previous attempt was missing: ${missing.join(", ")}. Rebuild the fit so it includes at least one bottom, one pair of shoes, and a top or outerwear piece.`
+        : "";
+    result = await askAnthropic(
+      "",
+      [{ type: "text", text: `${basePrompt}${retryNote}` }],
+      1200,
+    );
+    missing = missingFitParts(
+      [...strings(result.piece_ids), ...strings(result.optional_piece_ids)],
+      pieces,
+    );
+    if (missing.length === 0) break;
+  }
+  if (missing.length > 0) {
+    throw new FunctionError(
+      "incomplete_fit",
+      "Couldn't build a complete fit for that — try a different occasion.",
+      422,
+    );
+  }
   const [assignment] = await classifyFits(
     profiles,
     [

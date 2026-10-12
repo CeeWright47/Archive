@@ -9,6 +9,28 @@ export interface PieceRow {
   vibe: string | null;
 }
 
+// Mirrors src/storage/pieces.ts's CATEGORY_ALIASES/normalizeCategory — the
+// pieces table stores the legacy singular, lowercase form ("top", "bottom",
+// "outerwear", "shoes", "accessory"), normalized to this canonical casing
+// only on the client. Edge functions read the raw column, so they need the
+// same normalization to compare categories reliably.
+const CATEGORY_ALIASES: Record<string, string> = {
+  top: "Tops",
+  tops: "Tops",
+  bottom: "Bottoms",
+  bottoms: "Bottoms",
+  outerwear: "Outerwear",
+  shoe: "Shoes",
+  shoes: "Shoes",
+  accessory: "Accessories",
+  accessories: "Accessories",
+};
+
+export function normalizePieceCategory(raw: string | null): string {
+  const key = (raw ?? "").trim().toLowerCase();
+  return CATEGORY_ALIASES[key] ?? "Accessories";
+}
+
 export interface StyleContext {
   pieces: PieceRow[];
   styleText: string;

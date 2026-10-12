@@ -72,6 +72,18 @@ export interface AssessmentResult {
   created_at: string;
 }
 
+// Thrown whenever an Edge Function returns a non-2xx {code, message} body.
+// `code` lets specific call sites branch (e.g. into PieceLimitError below);
+// `message` is always safe to show the user as-is.
+export class EdgeFunctionError extends Error {
+  code: string;
+  constructor(code: string, message: string) {
+    super(message);
+    this.name = "EdgeFunctionError";
+    this.code = code;
+  }
+}
+
 export class PieceLimitError extends Error {
   constructor() {
     super("Your free wardrobe includes up to 50 pieces.");
@@ -86,24 +98,69 @@ export class AssessmentLimitError extends Error {
   }
 }
 
+function readableBody(value: unknown): EdgeFunctionError | null {
+  if (!value || typeof value !== "object") return null;
+  const body = value as Record<string, unknown>;
+  if (typeof body.message !== "string") return null;
+  return new EdgeFunctionError(
+    typeof body.code === "string" ? body.code : "internal_error",
+    body.message,
+  );
+}
+
+async function readableError(error: unknown): Promise<Error> {
+  // Some SDK versions/paths expose the parsed body directly on the error.
+  const direct = readableBody(error);
+  if (direct) return direct;
+
+  // Otherwise error.context is the raw fetch Response for an HTTP error.
+  // Duck-type rather than `instanceof Response` — React Native's fetch
+  // polyfill doesn't always line up with the global Response constructor
+  // this module sees.
+  const context = (error as { context?: unknown } | null)?.context as
+    | { json?: unknown; text?: unknown }
+    | null
+    | undefined;
+  if (context) {
+    try {
+      let parsed: unknown = null;
+      if (typeof context.json === "function") {
+        parsed = await (context.json as () => Promise<unknown>)();
+      } else if (typeof context.text === "function") {
+        const text = await (context.text as () => Promise<string>)();
+        parsed = text ? JSON.parse(text) : null;
+      }
+      const fromBody = readableBody(parsed);
+      if (fromBody) return fromBody;
+    } catch {
+      // Body wasn't readable JSON — fall through to the generic error below.
+    }
+  }
+  return error instanceof Error
+    ? error
+    : new Error("Something went wrong. Please try again.");
+}
+
 async function invoke<T>(
   name: string,
   body: Record<string, unknown>,
 ): Promise<T> {
   const { data, error } = await supabase.functions.invoke<T>(name, { body });
-  if (error) throw error;
+  if (error) throw await readableError(error);
   if (!data) throw new Error(`${name} returned no data.`);
   return data;
 }
 
 export const ai = {
   catalogGarment: async (image: string) => {
-    const result = await invoke<CatalogResult | { limit_reached: true }>(
-      "catalog-garment",
-      { image },
-    );
-    if ("limit_reached" in result) throw new PieceLimitError();
-    return result;
+    try {
+      return await invoke<CatalogResult>("catalog-garment", { image });
+    } catch (error) {
+      if (error instanceof EdgeFunctionError && error.code === "piece_limit_reached") {
+        throw new PieceLimitError();
+      }
+      throw error;
+    }
   },
   suggestPairings: (anchorPieceId: string) =>
     invoke<PairingResult>("suggest-pairings", { anchorPieceId }),
@@ -111,12 +168,14 @@ export const ai = {
     outfitIds: string[];
     outfitImages: string[];
   }) => {
-    const result = await invoke<AssessmentResult | { limit_reached: true }>(
-      "style-assessment",
-      input,
-    );
-    if ("limit_reached" in result) throw new AssessmentLimitError();
-    return result;
+    try {
+      return await invoke<AssessmentResult>("style-assessment", input);
+    } catch (error) {
+      if (error instanceof EdgeFunctionError && error.code === "plan_required") {
+        throw new AssessmentLimitError();
+      }
+      throw error;
+    }
   },
   assessmentInputsHash: (outfitIds: string[]) =>
     invoke<{ inputs_hash: string }>("style-assessment", {

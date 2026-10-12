@@ -7,6 +7,7 @@ import {
 import { ASSESSMENT_SYSTEM_PROMPT } from "../_shared/assessmentPrompt.ts";
 import {
     askAnthropic,
+    FunctionError,
     imageBlock,
     serveWorkflow,
     type AnthropicContentBlock,
@@ -33,7 +34,11 @@ serveWorkflow(async ({ body, supabase, user }) => {
     if (profileError) throw profileError;
     if (countError) throw countError;
     if ((profile?.plan ?? "free") === "free" && (count ?? 0) >= 1) {
-      return { limit_reached: true, assessment_count: count, limit: 1 };
+      throw new FunctionError(
+        "plan_required",
+        "Assessment re-runs are available with Pro.",
+        403,
+      );
     }
   }
 
@@ -128,7 +133,11 @@ serveWorkflow(async ({ body, supabase, user }) => {
         RANKS.indexOf(String(left.rank)) - RANKS.indexOf(String(right.rank)),
     );
   if (profiles.length < 2)
-    throw new Error("Assessment must return at least two profiles");
+    throw new FunctionError(
+      "upstream_error",
+      "Couldn't generate a complete assessment. Please try again.",
+      502,
+    );
   const sharedPieces = Array.isArray(result.shared_pieces)
     ? result.shared_pieces.filter(
         (item): item is string => typeof item === "string",

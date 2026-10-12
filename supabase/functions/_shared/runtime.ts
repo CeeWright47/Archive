@@ -23,6 +23,21 @@ const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
 };
 
+const ANTHROPIC_TIMEOUT_MS = 45000;
+
+// Thrown by workflows to produce a specific {code, message} error response
+// instead of the generic internal_error fallback.
+export class FunctionError extends Error {
+  code: string;
+  status: number;
+  constructor(code: string, message: string, status = 400) {
+    super(message);
+    this.name = "FunctionError";
+    this.code = code;
+    this.status = status;
+  }
+}
+
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
@@ -30,8 +45,8 @@ function json(body: unknown, status = 200): Response {
   });
 }
 
-function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "Unexpected error";
+function errorJson(code: string, message: string, status: number): Response {
+  return json({ code, message }, status);
 }
 
 export function serveWorkflow(
@@ -42,18 +57,30 @@ export function serveWorkflow(
       return new Response("ok", { headers: corsHeaders });
     }
     if (request.method !== "POST") {
-      return json({ error: "Method not allowed" }, 405);
+      return errorJson(
+        "method_not_allowed",
+        "This request method isn't supported.",
+        405,
+      );
     }
 
     const authorization = request.headers.get("Authorization");
     if (!authorization?.startsWith("Bearer ")) {
-      return json({ error: "Authentication required" }, 401);
+      return errorJson(
+        "auth_required",
+        "You need to be signed in to do that.",
+        401,
+      );
     }
 
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY");
     if (!supabaseUrl || !supabaseAnonKey) {
-      return json({ error: "Supabase environment is not configured" }, 503);
+      return errorJson(
+        "config_error",
+        "The server isn't configured correctly. Please try again later.",
+        503,
+      );
     }
 
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
@@ -63,7 +90,11 @@ export function serveWorkflow(
     const token = authorization.slice("Bearer ".length);
     const { data, error } = await supabase.auth.getUser(token);
     if (error || !data.user) {
-      return json({ error: "Invalid or expired authentication" }, 401);
+      return errorJson(
+        "auth_invalid",
+        "Your session has expired. Please sign in again.",
+        401,
+      );
     }
 
     try {
@@ -72,7 +103,14 @@ export function serveWorkflow(
       return json(await workflow({ body, supabase, user: data.user }));
     } catch (error) {
       console.error(error);
-      return json({ error: errorMessage(error) }, 400);
+      if (error instanceof FunctionError) {
+        return errorJson(error.code, error.message, error.status);
+      }
+      return errorJson(
+        "internal_error",
+        "Something went wrong. Please try again.",
+        500,
+      );
     }
   });
 }
@@ -83,29 +121,63 @@ export async function askAnthropic(
   maxTokens = 1000,
 ): Promise<Record<string, unknown>> {
   const apiKey = Deno.env.get("ANTHROPIC_API_KEY");
-  if (!apiKey) throw new Error("Anthropic API is not configured");
+  if (!apiKey) {
+    throw new FunctionError(
+      "upstream_error",
+      "The AI service isn't configured. Please try again later.",
+      503,
+    );
+  }
 
-  const response = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "anthropic-version": "2023-06-01",
-      "x-api-key": apiKey,
-    },
-    body: JSON.stringify({
-      model: "claude-sonnet-4-6",
-      max_tokens: maxTokens,
-      ...(system ? { system } : {}),
-      messages: [{ role: "user", content }],
-    }),
-  });
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), ANTHROPIC_TIMEOUT_MS);
+  let response: Response;
+  try {
+    response = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "anthropic-version": "2023-06-01",
+        "x-api-key": apiKey,
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6",
+        max_tokens: maxTokens,
+        ...(system ? { system } : {}),
+        messages: [{ role: "user", content }],
+      }),
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") {
+      throw new FunctionError(
+        "upstream_timeout",
+        "That took too long to respond. Please try again.",
+        504,
+      );
+    }
+    throw new FunctionError(
+      "upstream_error",
+      "Couldn't reach the AI service. Please try again.",
+      502,
+    );
+  } finally {
+    clearTimeout(timeout);
+  }
+
   const result = await response.json();
   if (!response.ok) {
-    throw new Error(result?.error?.message ?? "Anthropic request failed");
+    throw new FunctionError(
+      "upstream_error",
+      "The AI service had a problem handling that request. Please try again.",
+      502,
+    );
   }
   if (result?.stop_reason === "max_tokens") {
-    throw new Error(
-      "Anthropic response was truncated because it reached the maximum token limit",
+    throw new FunctionError(
+      "upstream_error",
+      "The AI response was too long to finish. Please try again.",
+      502,
     );
   }
 
@@ -115,16 +187,25 @@ export async function askAnthropic(
         .join("")
     : "";
   const cleaned = text.replace(/```json|```/g, "").trim();
-  const parsed = JSON.parse(cleaned);
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(cleaned);
+  } catch {
+    parsed = null;
+  }
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-    throw new Error("Anthropic returned an invalid JSON object");
+    throw new FunctionError(
+      "upstream_error",
+      "Got an unexpected response from the AI service. Please try again.",
+      502,
+    );
   }
   return parsed as Record<string, unknown>;
 }
 
 export function imageBlock(base64: unknown): AnthropicContentBlock {
   if (typeof base64 !== "string" || base64.length === 0) {
-    throw new Error("A JPEG image is required");
+    throw new FunctionError("invalid_request", "A photo is required for that.", 400);
   }
   return {
     type: "image",
