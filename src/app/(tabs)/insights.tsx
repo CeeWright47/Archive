@@ -1,5 +1,4 @@
 import { Ionicons } from "@expo/vector-icons";
-import { Image } from "expo-image";
 import { useEffect, useState } from "react";
 import {
     ActivityIndicator,
@@ -20,16 +19,10 @@ import {
     type ClosetGapItem,
     type ClosetGaps,
 } from "@/storage/settings";
-import {
-    imageUriForWant,
-    wants as wantsStore,
-    type Want,
-} from "@/storage/wants";
 import { theme } from "@/theme/tokens";
 
 export default function InsightsScreen() {
   const [dockHeight, setDockHeight] = useState(0);
-  const [allWants, setAllWants] = useState<Want[]>([]);
   const [closetGaps, setClosetGaps] = useState<ClosetGaps | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -39,11 +32,7 @@ export default function InsightsScreen() {
   async function load() {
     try {
       setError(null);
-      const [storedWants, profileSettings] = await Promise.all([
-        wantsStore.list(),
-        settings.getProfileSettings(),
-      ]);
-      setAllWants(storedWants);
+      const profileSettings = await settings.getProfileSettings();
       setClosetGaps(profileSettings.closetGaps);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Couldn’t load insights.");
@@ -58,36 +47,6 @@ export default function InsightsScreen() {
     setRefreshing(true);
     await load();
     setRefreshing(false);
-  }
-
-  async function handleToggleOwned(want: Want) {
-    const nextOwned = !want.owned;
-    setAllWants((current) =>
-      current.map((w) => (w.id === want.id ? { ...w, owned: nextOwned } : w)),
-    );
-    try {
-      await wantsStore.setOwned(want.id, nextOwned);
-    } catch {
-      setAllWants((current) =>
-        current.map((w) =>
-          w.id === want.id ? { ...w, owned: want.owned } : w,
-        ),
-      );
-    }
-  }
-
-  async function handleDismissWant(id: string) {
-    const previous = allWants;
-    setAllWants((current) => current.filter((w) => w.id !== id));
-    try {
-      await wantsStore.remove(id);
-    } catch (err) {
-      setAllWants(previous);
-      Alert.alert(
-        "Couldn’t remove item",
-        err instanceof Error ? err.message : "Please try again.",
-      );
-    }
   }
 
   async function handleToggleGapItem(index: number, owned: boolean) {
@@ -144,7 +103,6 @@ export default function InsightsScreen() {
     );
   }
 
-  const boughtCount = allWants.filter((want) => want.owned).length;
   const acquiredCount =
     closetGaps?.items.filter((item) => item.owned).length ?? 0;
   const gapItems = closetGaps?.items ?? [];
@@ -163,7 +121,7 @@ export default function InsightsScreen() {
       >
         <PageTitle>What’s missing</PageTitle>
         <Text style={styles.subtitle}>
-          Items spotted while you were out and gaps we noticed in your closet.
+          Gaps we noticed in your closet, worth filling.
         </Text>
 
         <View style={styles.sectionHeader}>
@@ -194,28 +152,6 @@ export default function InsightsScreen() {
         {closetGaps && closetGaps.stopBuying.length > 0 && (
           <Text style={styles.stopBuying}>{closetGaps.stopBuying}</Text>
         )}
-
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Spotted in the wild</Text>
-          <Text style={styles.sectionCount}>
-            {boughtCount}/{allWants.length} bought
-          </Text>
-        </View>
-
-        {allWants.length === 0 ? (
-          <Text style={styles.emptyBody}>Nothing spotted yet.</Text>
-        ) : (
-          <View style={styles.list}>
-            {allWants.map((want) => (
-              <WantCard
-                key={want.id}
-                want={want}
-                onToggleOwned={() => handleToggleOwned(want)}
-                onDismiss={() => handleDismissWant(want.id)}
-              />
-            ))}
-          </View>
-        )}
       </ScrollView>
 
       <BottomDock
@@ -226,78 +162,6 @@ export default function InsightsScreen() {
         loading={rerunning}
         onHeightChange={setDockHeight}
       />
-    </View>
-  );
-}
-
-function WantCard({
-  want,
-  onToggleOwned,
-  onDismiss,
-}: {
-  want: Want;
-  onToggleOwned: () => void;
-  onDismiss: () => void;
-}) {
-  const uri = imageUriForWant(want);
-  return (
-    <View style={styles.card}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`Dismiss ${want.item}`}
-        onPress={onDismiss}
-        style={styles.cardDismiss}
-      >
-        <Ionicons name="close" size={16} color={theme.colors.textMuted} />
-      </Pressable>
-      <View style={styles.imageWrapper}>
-        {uri ? (
-          <Image source={{ uri }} style={styles.image} contentFit="cover" />
-        ) : (
-          <View style={[styles.image, styles.imageFallback]} />
-        )}
-      </View>
-      <View style={styles.cardBody}>
-        <View style={styles.cardHeader}>
-          <Text style={styles.itemName} numberOfLines={2}>
-            {want.item}
-          </Text>
-          <Text style={styles.score}>{want.score}/10</Text>
-        </View>
-        {want.reason.length > 0 && (
-          <Text style={styles.reason} numberOfLines={4}>
-            {want.reason}
-          </Text>
-        )}
-        <View style={styles.cardFooter}>
-          {want.price.length > 0 && (
-            <Text style={styles.price}>{want.price}</Text>
-          )}
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={
-              want.owned ? "Mark as not bought" : "Mark as bought"
-            }
-            onPress={onToggleOwned}
-            style={[styles.ownedButton, want.owned && styles.ownedButtonActive]}
-          >
-            <Ionicons
-              name={
-                want.owned ? "checkmark-circle" : "checkmark-circle-outline"
-              }
-              size={16}
-              color={
-                want.owned ? theme.colors.background : theme.colors.textMuted
-              }
-            />
-            <Text
-              style={[styles.ownedLabel, want.owned && styles.ownedLabelActive]}
-            >
-              {want.owned ? "Bought" : "Mark bought"}
-            </Text>
-          </Pressable>
-        </View>
-      </View>
     </View>
   );
 }
@@ -394,96 +258,6 @@ const styles = StyleSheet.create({
   },
   list: {
     gap: theme.spacing.sm,
-  },
-  card: {
-    flexDirection: "row",
-    gap: theme.spacing.sm,
-    padding: theme.spacing.sm,
-    borderRadius: theme.radii.lg,
-    backgroundColor: theme.colors.backgroundElevated,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: theme.colors.border,
-  },
-  cardDismiss: {
-    position: "absolute",
-    top: theme.spacing.xs,
-    right: theme.spacing.xs,
-    padding: theme.spacing.xxs,
-    zIndex: 1,
-  },
-  imageWrapper: {
-    borderRadius: theme.radii.md,
-    overflow: "hidden",
-    backgroundColor: theme.colors.background,
-  },
-  image: {
-    width: 88,
-    height: 88,
-  },
-  imageFallback: {
-    backgroundColor: theme.colors.background,
-  },
-  cardBody: {
-    flex: 1,
-    gap: theme.spacing.xxs,
-  },
-  cardHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    gap: theme.spacing.xs,
-    paddingRight: theme.spacing.lg,
-  },
-  itemName: {
-    flex: 1,
-    fontSize: theme.typography.headline.fontSize,
-    lineHeight: theme.typography.headline.lineHeight,
-    fontWeight: theme.typography.headline.fontWeight,
-    color: theme.colors.text,
-  },
-  score: {
-    fontSize: theme.typography.footnote.fontSize,
-    lineHeight: theme.typography.footnote.lineHeight,
-    color: theme.colors.accent,
-    fontWeight: theme.typography.headline.fontWeight,
-  },
-  reason: {
-    fontSize: theme.typography.caption1.fontSize,
-    lineHeight: theme.typography.caption1.lineHeight,
-    color: theme.colors.textMuted,
-  },
-  cardFooter: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginTop: theme.spacing.xxs,
-  },
-  price: {
-    fontSize: theme.typography.footnote.fontSize,
-    lineHeight: theme.typography.footnote.lineHeight,
-    color: theme.colors.text,
-  },
-  ownedButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing.xxs,
-    paddingHorizontal: theme.spacing.xs,
-    paddingVertical: theme.spacing.xxs,
-    borderRadius: theme.radii.pill,
-    borderWidth: StyleSheet.hairlineWidth,
-    borderColor: theme.colors.border,
-  },
-  ownedButtonActive: {
-    backgroundColor: theme.colors.accent,
-    borderColor: theme.colors.accent,
-  },
-  ownedLabel: {
-    fontSize: theme.typography.caption2.fontSize,
-    lineHeight: theme.typography.caption2.lineHeight,
-    color: theme.colors.textMuted,
-  },
-  ownedLabelActive: {
-    color: theme.colors.background,
-    fontWeight: theme.typography.headline.fontWeight,
   },
   gapRow: {
     flexDirection: "row",
