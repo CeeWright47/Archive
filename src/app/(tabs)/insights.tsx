@@ -1,5 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
-import { useEffect, useState } from "react";
+import { useNavigation } from "expo-router";
+import { useEffect, useRef, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
@@ -22,6 +23,8 @@ import {
 import { theme } from "@/theme/tokens";
 
 export default function InsightsScreen() {
+  const navigation = useNavigation();
+  const scrollRef = useRef<ScrollView>(null);
   const [dockHeight, setDockHeight] = useState(0);
   const [closetGaps, setClosetGaps] = useState<ClosetGaps | null>(null);
   const [loading, setLoading] = useState(true);
@@ -42,6 +45,15 @@ export default function InsightsScreen() {
   useEffect(() => {
     load().finally(() => setLoading(false));
   }, []);
+
+  // Re-tapping the Insights tab while already on it scrolls back to the top.
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("tabPress" as never, () => {
+      if (!navigation.isFocused()) return;
+      scrollRef.current?.scrollTo({ y: 0, animated: true });
+    });
+    return unsubscribe;
+  }, [navigation]);
 
   async function handleRefresh() {
     setRefreshing(true);
@@ -110,6 +122,7 @@ export default function InsightsScreen() {
   return (
     <View style={styles.container}>
       <ScrollView
+        ref={scrollRef}
         contentContainerStyle={[styles.content, { paddingBottom: dockHeight }]}
         refreshControl={
           <RefreshControl

@@ -1,6 +1,6 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
-import { useRouter, type Href } from "expo-router";
+import { useNavigation, useRouter, type Href } from "expo-router";
 import { useEffect, useRef, useState } from "react";
 import {
     ActivityIndicator,
@@ -23,6 +23,8 @@ import { theme } from "@/theme/tokens";
 
 export default function OutfitsScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
+  const scrollRef = useRef<ScrollView>(null);
   const [occasion, setOccasion] = useState("");
   const [dockHeight, setDockHeight] = useState(0);
   const [allFits, setAllFits] = useState<Fit[]>([]);
@@ -84,6 +86,17 @@ export default function OutfitsScreen() {
     load().finally(() => setLoading(false));
   }, []);
 
+  // Re-tapping the Outfits tab while already on it clears the draft occasion
+  // text and scrolls back to the top.
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("tabPress" as never, () => {
+      if (!navigation.isFocused()) return;
+      setOccasion("");
+      scrollRef.current?.scrollTo({ y: 0, animated: true });
+    });
+    return unsubscribe;
+  }, [navigation]);
+
   async function handleRefresh() {
     setRefreshing(true);
     await load();
@@ -144,6 +157,7 @@ export default function OutfitsScreen() {
   return (
     <View style={styles.container}>
       <ScrollView
+        ref={scrollRef}
         contentContainerStyle={[styles.content, { paddingBottom: dockHeight }]}
         refreshControl={
           <RefreshControl

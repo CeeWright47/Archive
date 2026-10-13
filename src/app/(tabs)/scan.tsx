@@ -1,6 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
-import { useEffect, useState } from "react";
+import { useNavigation } from "expo-router";
+import { useEffect, useRef, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
@@ -26,6 +27,8 @@ import {
 import { theme } from "@/theme/tokens";
 
 export default function ScanScreen() {
+  const navigation = useNavigation();
+  const scrollRef = useRef<ScrollView>(null);
   const [dockHeight, setDockHeight] = useState(0);
   const [choosingSource, setChoosingSource] = useState(false);
   const [scanning, setScanning] = useState(false);
@@ -47,6 +50,18 @@ export default function ScanScreen() {
   useEffect(() => {
     loadWants().finally(() => setLoadingWants(false));
   }, []);
+
+  // Re-tapping the Scan tab while already on it clears the last scan result
+  // and scrolls back to the top.
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("tabPress" as never, () => {
+      if (!navigation.isFocused()) return;
+      setResult(null);
+      setImageUri(null);
+      scrollRef.current?.scrollTo({ y: 0, animated: true });
+    });
+    return unsubscribe;
+  }, [navigation]);
 
   async function handleRefresh() {
     setRefreshing(true);
@@ -125,6 +140,7 @@ export default function ScanScreen() {
   return (
     <View style={styles.container}>
       <ScrollView
+        ref={scrollRef}
         contentContainerStyle={[styles.content, { paddingBottom: dockHeight }]}
         refreshControl={
           <RefreshControl

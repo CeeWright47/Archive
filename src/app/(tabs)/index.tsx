@@ -1,5 +1,5 @@
-import { useRouter, type Href } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigation, useRouter, type Href } from "expo-router";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     Alert,
     StyleSheet,
@@ -7,6 +7,7 @@ import {
     View,
     type LayoutChangeEvent,
 } from "react-native";
+import type { FlatList } from "react-native";
 import Animated, {
     useAnimatedScrollHandler,
     useSharedValue,
@@ -80,6 +81,8 @@ function matchesQuery(piece: Piece, query: string): boolean {
 
 export default function WardrobeScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
+  const listRef = useRef<FlatList<Piece>>(null);
   const [allPieces, setAllPieces] = useState<Piece[]>([]);
   const [selectedCategory, setSelectedCategory] =
     useState<PieceCategory | null>(null);
@@ -113,9 +116,20 @@ export default function WardrobeScreen() {
   const headerHeightShared = useSharedValue(0);
   const lastScrollY = useSharedValue(0);
 
+  // A chip toggle (category/subcategory) can only happen while the header is
+  // at least partly visible, and it can change the header's own height (the
+  // subcategory row appearing/disappearing). Without this, headerTranslateY
+  // keeps whatever pixel offset it had under the OLD height, so the newly
+  // resized header no longer lines up with that offset — on the next scroll
+  // it can settle mid-way, leaving it overlapping the grid instead of fully
+  // shown or fully hidden. Snapping back to fully shown whenever the height
+  // changes keeps the two in sync; it's a no-op when already fully shown.
   useEffect(() => {
     headerHeightShared.value = headerHeight;
-  }, [headerHeight, headerHeightShared]);
+    headerTranslateY.value = withTiming(0, {
+      duration: HEADER_SNAP_DURATION_MS,
+    });
+  }, [headerHeight, headerHeightShared, headerTranslateY]);
 
   const snapHeader = () => {
     "worklet";
@@ -168,6 +182,23 @@ export default function WardrobeScreen() {
       .list()
       .then((list) => setOutfitPieceIds(list.map((o) => o.pieceIds)));
   }, []);
+
+  // Re-tapping the Wardrobe tab while already on it clears the search/filter
+  // state and scrolls back to the top, rather than leaving the screen as-is.
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("tabPress" as never, () => {
+      if (!navigation.isFocused()) return;
+      setQuery("");
+      setSelectedCategory(null);
+      setSelectedSubcategory(null);
+      setFitFilter(null);
+      headerTranslateY.value = withTiming(0, {
+        duration: HEADER_SNAP_DURATION_MS,
+      });
+      listRef.current?.scrollToOffset({ offset: 0, animated: true });
+    });
+    return unsubscribe;
+  }, [navigation, headerTranslateY]);
 
   const showWornSorts = outfitPieceIds.length >= MIN_OUTFITS_FOR_WORN_SORT;
 
@@ -386,6 +417,7 @@ export default function WardrobeScreen() {
       />
 
       <Animated.FlatList
+        ref={listRef}
         data={filteredPieces}
         keyExtractor={(piece) => piece.id}
         numColumns={2}

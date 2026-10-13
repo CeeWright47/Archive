@@ -1,7 +1,7 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
-import { useRouter, type Href } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
+import { useNavigation, useRouter, type Href } from "expo-router";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
     ActivityIndicator,
     Alert,
@@ -43,6 +43,9 @@ function today(): string {
 
 export default function LookbookScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
+  const inspoListRef = useRef<FlatList<InspoImage>>(null);
+  const myStyleListRef = useRef<FlatList<Outfit>>(null);
   const [activeTab, setActiveTab] = useState<LookbookTab>("inspiration");
   const [dockHeight, setDockHeight] = useState(0);
 
@@ -83,6 +86,18 @@ export default function LookbookScreen() {
   useEffect(() => {
     load().finally(() => setLoading(false));
   }, []);
+
+  // Re-tapping the Lookbook tab while already on it returns to the
+  // Inspiration sub-tab and scrolls both lists back to the top.
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("tabPress" as never, () => {
+      if (!navigation.isFocused()) return;
+      setActiveTab("inspiration");
+      inspoListRef.current?.scrollToOffset({ offset: 0, animated: true });
+      myStyleListRef.current?.scrollToOffset({ offset: 0, animated: true });
+    });
+    return unsubscribe;
+  }, [navigation]);
 
   async function handleRefresh() {
     setRefreshing(true);
@@ -277,6 +292,7 @@ export default function LookbookScreen() {
       {activeTab === "inspiration" ? (
         <>
           <FlatList
+            ref={inspoListRef}
             data={allInspo}
             keyExtractor={(entry) => entry.id}
             numColumns={2}
@@ -332,6 +348,7 @@ export default function LookbookScreen() {
             A photographic record of what you’ve actually worn.
           </Text>
           <FlatList
+            ref={myStyleListRef}
             data={sortedOutfits}
             keyExtractor={(outfit) => outfit.id}
             numColumns={2}
