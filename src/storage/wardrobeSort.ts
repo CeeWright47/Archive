@@ -6,6 +6,7 @@ export const SORT_OPTIONS = [
   { value: "oldest", label: "Oldest" },
   { value: "name", label: "Name A–Z" },
   { value: "color", label: "Color" },
+  { value: "rating", label: "Highest rated" },
   { value: "mostWorn", label: "Most worn" },
   { value: "leastWorn", label: "Least worn" },
 ] as const;
@@ -62,6 +63,10 @@ export function sortPieces(
         (a, b) =>
           a.color.localeCompare(b.color, undefined, { sensitivity: "base" }) ||
           byName(a, b),
+      );
+    case "rating":
+      return sorted.sort(
+        (a, b) => (b.rating ?? 0) - (a.rating ?? 0) || b.createdAt - a.createdAt,
       );
     case "mostWorn":
       return sorted.sort(
