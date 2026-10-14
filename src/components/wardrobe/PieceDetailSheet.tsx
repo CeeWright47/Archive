@@ -28,7 +28,6 @@ import { theme } from "@/theme/tokens";
 
 interface PieceDetailSheetProps {
   piece: Piece | null;
-  startInEditMode?: boolean;
   onClose: () => void;
   onSave: (piece: Piece) => Promise<void> | void;
   onDelete: (id: string) => Promise<void> | void;
@@ -36,18 +35,15 @@ interface PieceDetailSheetProps {
 
 export function PieceDetailSheet({
   piece,
-  startInEditMode = false,
   onClose,
   onSave,
   onDelete,
 }: PieceDetailSheetProps) {
-  const [editing, setEditing] = useState(startInEditMode);
   const [draft, setDraft] = useState(piece);
 
   useEffect(() => {
     setDraft(piece);
-    setEditing(startInEditMode);
-  }, [piece, startInEditMode]);
+  }, [piece]);
 
   if (!piece || !draft) return null;
   const currentPiece = piece;
@@ -75,7 +71,7 @@ export function PieceDetailSheet({
     if (!draft) return;
     try {
       await onSave(draft);
-      setEditing(false);
+      onClose();
     } catch (error) {
       Alert.alert(
         "Couldn’t save changes",
@@ -101,141 +97,120 @@ export function PieceDetailSheet({
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
         >
-          {!editing && (
-            <View style={styles.titleRow}>
-              <Text style={styles.title} numberOfLines={2}>
-                {piece.name}
-              </Text>
-            </View>
-          )}
-
-          <View style={editing ? styles.imageWrapperEditing : styles.imageWrapper}>
+          <View style={styles.imageWrapper}>
             {uri ? (
-              <Image
-                source={{ uri }}
-                style={editing ? styles.imageEditing : styles.image}
-                contentFit="cover"
-              />
+              <Image source={{ uri }} style={styles.image} contentFit="cover" />
             ) : (
-              <View
-                style={[
-                  editing ? styles.imageEditing : styles.image,
-                  styles.imageFallback,
-                ]}
-              />
+              <View style={[styles.image, styles.imageFallback]} />
             )}
           </View>
 
-          {editing ? (
-            <View style={styles.fields}>
-              <Field label="Name">
-                <TextInput
-                  style={styles.input}
-                  value={draft.name}
-                  onChangeText={(name) => setDraft({ ...draft, name })}
-                  placeholder="Piece name"
-                  placeholderTextColor={theme.colors.textMuted}
-                />
-              </Field>
-              <Field label="Rating">
-                <StarRating
-                  value={draft.rating}
-                  onChange={(rating) => setDraft({ ...draft, rating })}
-                />
-              </Field>
-              <View style={styles.fieldRow}>
-                <Field label="Category" flex>
-                  <DropdownField
-                    title="Category"
-                    value={draft.category}
-                    options={PIECE_CATEGORIES}
-                    onChange={(category) => {
-                      const next = (category ??
-                        draft.category) as PieceCategory;
-                      const sameCategory = next === draft.category;
-                      setDraft({
-                        ...draft,
-                        category: next,
-                        subcategory: sameCategory ? draft.subcategory : null,
-                        fit:
-                          sameCategory || pieceFitsFor(next)
-                            ? draft.fit
-                            : null,
-                      });
-                    }}
-                  />
-                </Field>
-                <Field label="Type" flex>
-                  <DropdownField
-                    title="Type"
-                    value={draft.subcategory}
-                    options={subcategoriesFor(draft.category)}
-                    clearable
-                    onChange={(subcategory) =>
-                      setDraft({
-                        ...draft,
-                        subcategory: subcategory as Piece["subcategory"],
-                      })
-                    }
-                  />
-                </Field>
-              </View>
-              <View style={styles.fieldRow}>
-                {fitOptions && (
-                  <Field label="Fit" flex>
-                    <DropdownField
-                      title="Fit"
-                      value={draft.fit}
-                      options={fitOptions}
-                      clearable
-                      onChange={(fit) =>
-                        handleFitChange(fit as PieceFit | null)
-                      }
-                    />
-                  </Field>
-                )}
-                <Field label="Color" flex>
-                  <DropdownField
-                    title="Color"
-                    value={draft.color || null}
-                    options={COLORS}
-                    clearable
-                    onChange={(color) =>
-                      setDraft({ ...draft, color: color ?? "" })
-                    }
-                  />
-                </Field>
-              </View>
-              <Field label="Material">
+          <View style={styles.fields}>
+            <Field label="Name">
+              <TextInput
+                style={styles.input}
+                value={draft.name}
+                onChangeText={(name) => setDraft({ ...draft, name })}
+                placeholder="Piece name"
+                placeholderTextColor={theme.colors.textMuted}
+              />
+            </Field>
+            <Field label="Rating">
+              <StarRating
+                value={draft.rating}
+                onChange={(rating) => setDraft({ ...draft, rating })}
+              />
+            </Field>
+            <View style={styles.fieldRow}>
+              <Field label="Category" flex>
                 <DropdownField
-                  title="Material"
-                  value={draft.material || null}
-                  options={MATERIALS}
+                  title="Category"
+                  value={draft.category}
+                  options={PIECE_CATEGORIES}
+                  onChange={(category) => {
+                    const next = (category ??
+                      draft.category) as PieceCategory;
+                    const sameCategory = next === draft.category;
+                    setDraft({
+                      ...draft,
+                      category: next,
+                      subcategory: sameCategory ? draft.subcategory : null,
+                      fit:
+                        sameCategory || pieceFitsFor(next)
+                          ? draft.fit
+                          : null,
+                    });
+                  }}
+                />
+              </Field>
+              <Field label="Type" flex>
+                <DropdownField
+                  title="Type"
+                  value={draft.subcategory}
+                  options={subcategoriesFor(draft.category)}
                   clearable
-                  onChange={(material) =>
-                    setDraft({ ...draft, material: material ?? "" })
+                  onChange={(subcategory) =>
+                    setDraft({
+                      ...draft,
+                      subcategory: subcategory as Piece["subcategory"],
+                    })
                   }
                 />
               </Field>
             </View>
-          ) : null}
-
-          {editing && (
-            <View style={styles.actions}>
-              <ActionButton
-                label="Save"
-                icon="checkmark"
-                onPress={handleSave}
-                primary
-              />
-              <ActionButton
-                label="Delete"
-                icon="trash-outline"
-                onPress={handleDelete}
-                destructive
-              />
+            <View style={styles.fieldRow}>
+              {fitOptions && (
+                <Field label="Fit" flex>
+                  <DropdownField
+                    title="Fit"
+                    value={draft.fit}
+                    options={fitOptions}
+                    clearable
+                    onChange={(fit) =>
+                      handleFitChange(fit as PieceFit | null)
+                    }
+                  />
+                </Field>
+              )}
+              <Field label="Color" flex>
+                <DropdownField
+                  title="Color"
+                  value={draft.color || null}
+                  options={COLORS}
+                  clearable
+                  onChange={(color) =>
+                    setDraft({ ...draft, color: color ?? "" })
+                  }
+                />
+              </Field>
             </View>
-          )}
+            <Field label="Material">
+              <DropdownField
+                title="Material"
+                value={draft.material || null}
+                options={MATERIALS}
+                clearable
+                onChange={(material) =>
+                  setDraft({ ...draft, material: material ?? "" })
+                }
+              />
+            </Field>
+          </View>
+
+          <View style={styles.actions}>
+            <ActionButton
+              label="Save"
+              icon="checkmark"
+              onPress={handleSave}
+              primary
+            />
+            <ActionButton
+              label="Delete"
+              icon="trash-outline"
+              onPress={handleDelete}
+              destructive
+            />
+          </View>
         </ScrollView>
     </BottomSheet>
   );
@@ -310,35 +285,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.md,
     gap: theme.spacing.md,
   },
-  titleRow: {
-    paddingTop: theme.spacing.xs,
-    paddingRight: theme.spacing.xxl,
-  },
-  title: {
-    fontFamily: theme.fonts.serif,
-    fontSize: theme.typography.title3.fontSize,
-    lineHeight: theme.typography.title3.lineHeight,
-    color: theme.colors.text,
-  },
+  // Compact banner — the fields, not the photo, are the point of this
+  // sheet, and a full 4:5 image would push most of them below the fold.
   imageWrapper: {
-    borderRadius: theme.radii.lg,
-    overflow: "hidden",
-    backgroundColor: theme.colors.background,
-  },
-  // Compact banner while editing — the fields, not the photo, are the point
-  // of this screen, and the full 4:5 image otherwise pushes most of them
-  // below the fold.
-  imageWrapperEditing: {
     height: 140,
     borderRadius: theme.radii.lg,
     overflow: "hidden",
     backgroundColor: theme.colors.background,
   },
   image: {
-    width: "100%",
-    aspectRatio: 4 / 5,
-  },
-  imageEditing: {
     width: "100%",
     height: "100%",
   },

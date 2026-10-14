@@ -2,6 +2,7 @@ import * as AppleAuthentication from 'expo-apple-authentication';
 import { useState } from 'react';
 import { Platform, Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 
+import { authErrorMessage } from '@/auth/authErrors';
 import { useAuth } from '@/auth/AuthProvider';
 import { supabase } from '@/lib/supabase';
 import { spacing, theme, typography } from '@/theme/tokens';
@@ -46,7 +47,7 @@ export default function SignInScreen() {
       });
 
       if (authError) {
-        setError(authError.message);
+        setError(authErrorMessage(authError));
       }
     } catch (err) {
       const code = (err as { code?: string })?.code;

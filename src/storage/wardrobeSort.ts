@@ -1,12 +1,15 @@
 import { storage } from "./index";
 import type { Piece } from "./pieces";
+import { compareRatings } from "./ratingSort";
 
 export const SORT_OPTIONS = [
   { value: "newest", label: "Newest" },
   { value: "oldest", label: "Oldest" },
   { value: "name", label: "Name A–Z" },
   { value: "color", label: "Color" },
+  // "rating" predates "ratingLow"; kept as-is so saved sorts stay valid.
   { value: "rating", label: "Highest rated" },
+  { value: "ratingLow", label: "Lowest rated" },
   { value: "mostWorn", label: "Most worn" },
   { value: "leastWorn", label: "Least worn" },
 ] as const;
@@ -66,7 +69,15 @@ export function sortPieces(
       );
     case "rating":
       return sorted.sort(
-        (a, b) => (b.rating ?? 0) - (a.rating ?? 0) || b.createdAt - a.createdAt,
+        (a, b) =>
+          compareRatings(a.rating, b.rating, "highest") ||
+          b.createdAt - a.createdAt,
+      );
+    case "ratingLow":
+      return sorted.sort(
+        (a, b) =>
+          compareRatings(a.rating, b.rating, "lowest") ||
+          b.createdAt - a.createdAt,
       );
     case "mostWorn":
       return sorted.sort(

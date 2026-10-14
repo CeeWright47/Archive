@@ -22,11 +22,12 @@ import {
 } from "@/catalog/catalogPieces";
 import { ArchiveLoadingScreen } from "@/components/ArchiveLoadingScreen";
 import { BottomDock } from "@/components/BottomDock";
+import { SkeletonGrid } from "@/components/SkeletonGrid";
+import { SortSheet } from "@/components/SortSheet";
 import { UpgradeSheet } from "@/components/UpgradeSheet";
 import { ItemActionSheet } from "@/components/wardrobe/ItemActionSheet";
 import { PieceCard } from "@/components/wardrobe/PieceCard";
 import { PieceDetailSheet } from "@/components/wardrobe/PieceDetailSheet";
-import { SortSheet } from "@/components/wardrobe/SortSheet";
 import { WardrobeHeader } from "@/components/wardrobe/WardrobeHeader";
 import { fits, type Fit } from "@/storage/fits";
 import {
@@ -40,6 +41,7 @@ import { profileStore, type Plan } from "@/storage/profile";
 import type { Subcategory } from "@/storage/subcategories";
 import {
     MIN_OUTFITS_FOR_WORN_SORT,
+    SORT_OPTIONS,
     WORN_SORTS,
     sortPieces,
     wardrobeSort,
@@ -84,6 +86,8 @@ export default function WardrobeScreen() {
   const navigation = useNavigation();
   const listRef = useRef<FlatList<Piece>>(null);
   const [allPieces, setAllPieces] = useState<Piece[]>([]);
+  // Until the first fetch resolves, show a skeleton rather than "No pieces yet".
+  const [piecesLoaded, setPiecesLoaded] = useState(false);
   const [selectedCategory, setSelectedCategory] =
     useState<PieceCategory | null>(null);
   const [selectedSubcategory, setSelectedSubcategory] =
@@ -93,11 +97,7 @@ export default function WardrobeScreen() {
   const [fitFilter, setFitFilter] = useState<PieceFit | null>(null);
   const [sortOpen, setSortOpen] = useState(false);
   const [outfitPieceIds, setOutfitPieceIds] = useState<string[][]>([]);
-  const [selectedPieceId, setSelectedPieceId] = useState<string | null>(null);
-  const [newPieceId, setNewPieceId] = useState<string | null>(null);
-  const [forceEditPieceId, setForceEditPieceId] = useState<string | null>(
-    null,
-  );
+  const [editingPieceId, setEditingPieceId] = useState<string | null>(null);
   const [actionsPieceId, setActionsPieceId] = useState<string | null>(null);
   const [buildingFitFor, setBuildingFitFor] = useState<Piece | null>(null);
   const [adding, setAdding] = useState(false);
@@ -175,7 +175,10 @@ export default function WardrobeScreen() {
   });
 
   useEffect(() => {
-    pieces.list().then(setAllPieces);
+    pieces
+      .list()
+      .then(setAllPieces)
+      .finally(() => setPiecesLoaded(true));
     profileStore.getUserProfile().then((profile) => setPlan(profile.plan));
     wardrobeSort.get().then(setSort);
     outfits
@@ -201,6 +204,13 @@ export default function WardrobeScreen() {
   }, [navigation, headerTranslateY]);
 
   const showWornSorts = outfitPieceIds.length >= MIN_OUTFITS_FOR_WORN_SORT;
+  const sortOptions = useMemo(
+    () =>
+      SORT_OPTIONS.filter(
+        (option) => showWornSorts || !WORN_SORTS.includes(option.value),
+      ),
+    [showWornSorts],
+  );
 
   useEffect(() => {
     if (!showWornSorts && WORN_SORTS.includes(sort)) setSort("newest");
@@ -224,6 +234,12 @@ export default function WardrobeScreen() {
     if (fitFilter && !fitOptions.includes(fitFilter)) setFitFilter(null);
   }, [fitOptions, fitFilter]);
 
+  // A chip toggle changes the result set (and can change the header's
+  // height), so reset scroll alongside the header snap in the effect above.
+  const scrollToTop = useCallback(() => {
+    listRef.current?.scrollToOffset({ offset: 0, animated: false });
+  }, []);
+
   const handleHeaderLayout = useCallback((event: LayoutChangeEvent) => {
     setHeaderHeight(Math.ceil(event.nativeEvent.layout.height));
   }, []);
@@ -239,8 +255,7 @@ export default function WardrobeScreen() {
         setAllPieces((current) => [...current, piece]),
       );
       if (created[0]) {
-        setNewPieceId(created[0].id);
-        setSelectedPieceId(created[0].id);
+        setEditingPieceId(created[0].id);
       }
     } catch (error) {
       if (error instanceof PieceLimitError) {
@@ -261,15 +276,12 @@ export default function WardrobeScreen() {
     setAllPieces((current) =>
       current.map((p) => (p.id === updated.id ? updated : p)),
     );
-    setNewPieceId(null);
   }, []);
 
   const handleDeletePiece = useCallback(async (id: string) => {
     await pieces.remove(id);
     setAllPieces((current) => current.filter((p) => p.id !== id));
-    setSelectedPieceId(null);
-    setNewPieceId(null);
-    setForceEditPieceId(null);
+    setEditingPieceId(null);
   }, []);
 
   const confirmRemoveFromActions = useCallback(
@@ -291,8 +303,7 @@ export default function WardrobeScreen() {
   );
 
   const handleEditFromActions = useCallback((piece: Piece) => {
-    setForceEditPieceId(piece.id);
-    setSelectedPieceId(piece.id);
+    setEditingPieceId(piece.id);
   }, []);
 
   const handleShowPairings = useCallback(
@@ -387,8 +398,8 @@ export default function WardrobeScreen() {
     [inCategory],
   );
 
-  const selectedPiece =
-    allPieces.find((piece) => piece.id === selectedPieceId) ?? null;
+  const editingPiece =
+    allPieces.find((piece) => piece.id === editingPieceId) ?? null;
   const actionsPiece =
     allPieces.find((piece) => piece.id === actionsPieceId) ?? null;
 
@@ -400,9 +411,15 @@ export default function WardrobeScreen() {
         query={query}
         onQueryChange={setQuery}
         category={selectedCategory}
-        onCategoryChange={setSelectedCategory}
+        onCategoryChange={(next) => {
+          setSelectedCategory(next);
+          scrollToTop();
+        }}
         subcategory={selectedSubcategory}
-        onSubcategoryChange={setSelectedSubcategory}
+        onSubcategoryChange={(next) => {
+          setSelectedSubcategory(next);
+          scrollToTop();
+        }}
         categoryCounts={categoryCounts}
         subcategoryCounts={subcategoryCounts}
         onSortPress={() => setSortOpen(true)}
@@ -424,7 +441,11 @@ export default function WardrobeScreen() {
         columnWrapperStyle={styles.column}
         contentContainerStyle={[
           styles.grid,
-          { paddingBottom: dockHeight },
+          // The header overlays the grid, so the first row starts below it.
+          {
+            paddingTop: headerHeight + theme.spacing.sm,
+            paddingBottom: dockHeight,
+          },
         ]}
         scrollEventThrottle={16}
         onScroll={scrollHandler}
@@ -433,21 +454,25 @@ export default function WardrobeScreen() {
           <PieceCard
             piece={item}
             showSubcategory={selectedCategory !== null}
-            onPress={() => setSelectedPieceId(item.id)}
+            onPress={() => setActionsPieceId(item.id)}
             onActionsPress={() => setActionsPieceId(item.id)}
           />
         )}
         ListEmptyComponent={
-          <View style={styles.empty}>
-            <Text style={styles.emptyHeading}>
-              {allPieces.length === 0 ? "No pieces yet" : "Nothing matches"}
-            </Text>
-            <Text style={styles.emptyBody}>
-              {allPieces.length === 0
-                ? "Add pieces from photos to start building your wardrobe."
-                : "Try a different search or filter."}
-            </Text>
-          </View>
+          !piecesLoaded ? (
+            <SkeletonGrid style={styles.skeleton} />
+          ) : (
+            <View style={styles.empty}>
+              <Text style={styles.emptyHeading}>
+                {allPieces.length === 0 ? "No pieces yet" : "Nothing matches"}
+              </Text>
+              <Text style={styles.emptyBody}>
+                {allPieces.length === 0
+                  ? "Add pieces from photos to start building your wardrobe."
+                  : "Try a different search or filter."}
+              </Text>
+            </View>
+          )
         }
       />
 
@@ -462,8 +487,8 @@ export default function WardrobeScreen() {
 
       <SortSheet
         visible={sortOpen}
+        options={sortOptions}
         value={sort}
-        showWornOptions={showWornSorts}
         onSelect={handleSortChange}
         fitOptions={fitOptions}
         fitValue={fitFilter}
@@ -472,15 +497,8 @@ export default function WardrobeScreen() {
       />
 
       <PieceDetailSheet
-        piece={selectedPiece}
-        startInEditMode={
-          selectedPieceId === newPieceId || selectedPieceId === forceEditPieceId
-        }
-        onClose={() => {
-          setSelectedPieceId(null);
-          setNewPieceId(null);
-          setForceEditPieceId(null);
-        }}
+        piece={editingPiece}
+        onClose={() => setEditingPieceId(null)}
         onSave={handleSavePiece}
         onDelete={handleDeletePiece}
       />
@@ -519,12 +537,16 @@ const styles = StyleSheet.create({
   },
   grid: {
     paddingHorizontal: theme.spacing.md,
-    paddingTop: theme.spacing.sm,
     gap: theme.spacing.md,
     flexGrow: 1,
   },
   column: {
     gap: theme.spacing.md,
+  },
+  // The list's content container already provides the grid's padding.
+  skeleton: {
+    paddingHorizontal: 0,
+    paddingTop: 0,
   },
   empty: {
     flex: 1,

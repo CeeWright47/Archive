@@ -4,39 +4,35 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { BottomSheet } from "@/components/BottomSheet";
 import { ChipGroup } from "@/components/settings";
 import type { PieceFit } from "@/storage/fitVocabulary";
-import {
-    SORT_OPTIONS,
-    WORN_SORTS,
-    type WardrobeSort,
-} from "@/storage/wardrobeSort";
 import { theme } from "@/theme/tokens";
 
-interface SortSheetProps {
+export interface SortOption<T extends string> {
+  value: T;
+  label: string;
+}
+
+interface SortSheetProps<T extends string> {
   visible: boolean;
-  value: WardrobeSort;
-  showWornOptions: boolean;
-  onSelect: (sort: WardrobeSort) => void;
-  /** Fit values relevant to the active category; empty hides the filter. */
-  fitOptions: readonly PieceFit[];
-  fitValue: PieceFit | null;
-  onFitChange: (fit: PieceFit | null) => void;
+  options: readonly SortOption<T>[];
+  value: T;
+  onSelect: (sort: T) => void;
+  /** Wardrobe only: fit values relevant to the active category; empty or omitted hides the filter. */
+  fitOptions?: readonly PieceFit[];
+  fitValue?: PieceFit | null;
+  onFitChange?: (fit: PieceFit | null) => void;
   onClose: () => void;
 }
 
-export function SortSheet({
+export function SortSheet<T extends string>({
   visible,
+  options,
   value,
-  showWornOptions,
   onSelect,
-  fitOptions,
-  fitValue,
+  fitOptions = [],
+  fitValue = null,
   onFitChange,
   onClose,
-}: SortSheetProps) {
-  const options = SORT_OPTIONS.filter(
-    (option) => showWornOptions || !WORN_SORTS.includes(option.value),
-  );
-
+}: SortSheetProps<T>) {
   return (
     <BottomSheet visible={visible} onClose={onClose}>
       <View style={styles.content}>
@@ -71,7 +67,7 @@ export function SortSheet({
           );
         })}
 
-        {fitOptions.length > 0 && (
+        {fitOptions.length > 0 && onFitChange && (
           <>
             <Text style={[styles.title, styles.filterTitle]}>
               Filter by fit
