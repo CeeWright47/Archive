@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { imageUriForOutfit, type Outfit } from "@/storage/outfits";
+import { imageSourceForOutfit, type Outfit } from "@/storage/outfits";
 import { theme } from "@/theme/tokens";
 
 interface OutfitCardProps {
@@ -22,7 +22,7 @@ function formatDate(value: string): string {
 }
 
 export function OutfitCard({ outfit, onPress }: OutfitCardProps) {
-  const uri = imageUriForOutfit(outfit);
+  const source = imageSourceForOutfit(outfit, "thumb");
   const extraImageCount = outfit.imageIds.length - 1;
 
   return (
@@ -33,8 +33,8 @@ export function OutfitCard({ outfit, onPress }: OutfitCardProps) {
       style={styles.card}
     >
       <View style={styles.imageWrapper}>
-        {uri ? (
-          <Image source={{ uri }} style={styles.image} contentFit="cover" />
+        {source ? (
+          <Image source={source} style={styles.image} contentFit="cover" />
         ) : (
           <View style={[styles.image, styles.imageFallback]}>
             <Ionicons

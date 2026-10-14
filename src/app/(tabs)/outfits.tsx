@@ -18,7 +18,7 @@ import { ai } from "@/ai";
 import { BottomDock } from "@/components/BottomDock";
 import { PageTitle } from "@/components/PageTitle";
 import { fits, type Fit } from "@/storage/fits";
-import { imageUriFor, pieces, type Piece } from "@/storage/pieces";
+import { imageSourceFor, pieces, type Piece } from "@/storage/pieces";
 import { theme } from "@/theme/tokens";
 
 export default function OutfitsScreen() {
@@ -256,12 +256,12 @@ function FitCard({
       {linkedPieces.length > 0 && (
         <View style={styles.pieceRow}>
           {linkedPieces.slice(0, 5).map((piece) => {
-            const uri = imageUriFor(piece);
+            const source = imageSourceFor(piece, "thumb");
             return (
               <View key={piece.id} style={styles.pieceThumbWrapper}>
-                {uri ? (
+                {source ? (
                   <Image
-                    source={{ uri }}
+                    source={source}
                     style={styles.pieceThumb}
                     contentFit="cover"
                   />

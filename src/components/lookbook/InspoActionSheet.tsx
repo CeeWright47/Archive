@@ -2,7 +2,7 @@ import { Image } from "expo-image";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { BottomSheet } from "@/components/BottomSheet";
-import { imageUriForInspo, type InspoImage } from "@/storage/inspo";
+import { imageSourceForInspo, type InspoImage } from "@/storage/inspo";
 import { theme } from "@/theme/tokens";
 
 interface InspoActionSheetProps {
@@ -17,14 +17,14 @@ export function InspoActionSheet({
   onGenerateFit,
 }: InspoActionSheetProps) {
   if (!entry) return null;
-  const uri = imageUriForInspo(entry);
+  const source = imageSourceForInspo(entry, "thumb");
 
   return (
     <BottomSheet onClose={onClose}>
       <View style={styles.header}>
         <View style={styles.thumbWrapper}>
-          {uri ? (
-            <Image source={{ uri }} style={styles.thumb} contentFit="cover" />
+          {source ? (
+            <Image source={source} style={styles.thumb} contentFit="cover" />
           ) : (
             <View style={[styles.thumb, styles.thumbFallback]} />
           )}

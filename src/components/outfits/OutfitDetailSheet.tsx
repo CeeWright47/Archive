@@ -89,11 +89,11 @@ export function OutfitDetailSheet({
             contentContainerStyle={styles.photos}
           >
             {currentOutfit.imageIds.map((imageId) => {
-              const uri = images.read(imageId);
-              return uri ? (
+              const source = images.source(imageId, "full");
+              return source ? (
                 <Image
                   key={imageId}
-                  source={{ uri }}
+                  source={source}
                   style={styles.image}
                   contentFit="cover"
                 />

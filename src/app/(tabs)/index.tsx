@@ -29,6 +29,7 @@ import { ItemActionSheet } from "@/components/wardrobe/ItemActionSheet";
 import { PieceCard } from "@/components/wardrobe/PieceCard";
 import { PieceDetailSheet } from "@/components/wardrobe/PieceDetailSheet";
 import { WardrobeHeader } from "@/components/wardrobe/WardrobeHeader";
+import { pickImage } from "@/media/pickImage";
 import { fits, type Fit } from "@/storage/fits";
 import {
     ALL_PIECE_FITS,
@@ -105,6 +106,7 @@ export default function WardrobeScreen() {
   const [outfitPieceIds, setOutfitPieceIds] = useState<string[][]>([]);
   const [editingPieceId, setEditingPieceId] = useState<string | null>(null);
   const [actionsPieceId, setActionsPieceId] = useState<string | null>(null);
+  const [replacingPhoto, setReplacingPhoto] = useState(false);
   const [buildingFitFor, setBuildingFitFor] = useState<Piece | null>(null);
   const [adding, setAdding] = useState(false);
   const [plan, setPlan] = useState<Plan>("free");
@@ -308,6 +310,24 @@ export default function WardrobeScreen() {
     [handleDeletePiece],
   );
 
+  const handleReplacePhoto = useCallback(async (piece: Piece) => {
+    try {
+      const picked = await pickImage.fromLibrary();
+      if (!picked) return;
+      setReplacingPhoto(true);
+      await pieces.replacePhoto(piece.id, picked.uri);
+      // The photo changed but the piece record didn't; re-render the grid.
+      setAllPieces((current) => [...current]);
+    } catch (error) {
+      Alert.alert(
+        "Couldn’t replace photo",
+        error instanceof Error ? error.message : "Please try again.",
+      );
+    } finally {
+      setReplacingPhoto(false);
+    }
+  }, []);
+
   const handleEditFromActions = useCallback((piece: Piece) => {
     setEditingPieceId(piece.id);
   }, []);
@@ -410,7 +430,9 @@ export default function WardrobeScreen() {
   const actionsPiece =
     allPieces.find((piece) => piece.id === actionsPieceId) ?? null;
 
-  if (buildingFitFor) return <ArchiveLoadingScreen showTip={false} />;
+  if (buildingFitFor || replacingPhoto) {
+    return <ArchiveLoadingScreen showTip={false} />;
+  }
 
   return (
     <View style={styles.container}>
@@ -524,6 +546,10 @@ export default function WardrobeScreen() {
         onEdit={(piece) => {
           setActionsPieceId(null);
           handleEditFromActions(piece);
+        }}
+        onReplacePhoto={(piece) => {
+          setActionsPieceId(null);
+          handleReplacePhoto(piece);
         }}
         onRemove={(piece) => {
           setActionsPieceId(null);

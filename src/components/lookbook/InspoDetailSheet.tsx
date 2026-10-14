@@ -3,7 +3,7 @@ import { StyleSheet, Text, View } from "react-native";
 
 import { BottomSheet } from "@/components/BottomSheet";
 import { StarRating } from "@/components/StarRating";
-import { imageUriForInspo, type InspoImage } from "@/storage/inspo";
+import { imageSourceForInspo, type InspoImage } from "@/storage/inspo";
 import { theme } from "@/theme/tokens";
 
 interface InspoDetailSheetProps {
@@ -20,14 +20,14 @@ export function InspoDetailSheet({
   onRate,
 }: InspoDetailSheetProps) {
   if (!entry) return null;
-  const uri = imageUriForInspo(entry);
+  const source = imageSourceForInspo(entry, "full");
 
   return (
     <BottomSheet onClose={onClose}>
       <View style={styles.content}>
         <View style={styles.imageWrapper}>
-          {uri ? (
-            <Image source={{ uri }} style={styles.image} contentFit="contain" />
+          {source ? (
+            <Image source={source} style={styles.image} contentFit="contain" />
           ) : (
             <View style={[styles.image, styles.imageFallback]} />
           )}

@@ -22,7 +22,7 @@
 | Item | Notes |
 |---|---|
 | Route outfits through the storage adapter | Don't write to localStorage directly. One persistence path, local-only at the adapter level. |
-| IndexedDB for image blobs | localStorage ~5MB quota will break with base64 images. Store references in the outfit record. Handle quota-exceeded. |
+| ~~IndexedDB for image blobs~~ | Superseded (Oct 2026): photos live in the private `archive-images` Storage bucket; rows store paths. |
 | UUIDs for outfit ids | Not array indices or timestamps — needs to survive the move to a server DB. |
 | Nullable `userId` on outfits | Add now to avoid migrating records when auth lands. |
 | `fp` staleness includes outfit ids | So new fit photos trigger a re-analysis. |
@@ -32,7 +32,7 @@
 | Item | Notes |
 |---|---|
 | Real DB + logins | Expansion beyond personal local-only app. |
-| Self-photo privacy model | Fit photos are pictures of a user's body in their home. Decide storage location, visibility, and deletion behavior before auth ships — hard to retrofit. |
+| Self-photo privacy model | **Decided (Oct 2026):** outfit photos upload to the private `archive-images` bucket under the owner's folder (RLS by `auth.uid()`), are read only through short-lived signed URLs, and are deleted from Storage when the outfit is deleted. Still open: account-deletion cleanup of the user's whole folder. |
 | Profile re-ranking over time | Whether lane rank shifts silently as fits accumulate, or surfaces as a prompt to reorder. |
 
 ## Ideas — unscheduled

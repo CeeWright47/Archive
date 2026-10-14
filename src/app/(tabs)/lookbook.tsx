@@ -25,8 +25,7 @@ import { SkeletonGrid } from "@/components/SkeletonGrid";
 import { SortSheet } from "@/components/SortSheet";
 import { pickImage, type PickedImage } from "@/media/pickImage";
 import { fits, type Fit } from "@/storage/fits";
-import { images } from "@/storage/images";
-import { imageUriForInspo, inspo, type InspoImage } from "@/storage/inspo";
+import { imageSourceForInspo, inspo, type InspoImage } from "@/storage/inspo";
 import {
     LOOKBOOK_SORT_OPTIONS,
     lookbookSort,
@@ -40,6 +39,7 @@ import {
     type Outfit,
 } from "@/storage/outfits";
 import { pieces, type Piece } from "@/storage/pieces";
+import { photoStore } from "@/storage/photoStore";
 import { theme } from "@/theme/tokens";
 
 type LookbookTab = "inspiration" | "myStyle";
@@ -204,7 +204,7 @@ export default function LookbookScreen() {
       const imageIds: string[] = [];
       for (const asset of selected) {
         const imageId = generateOutfitImageId();
-        await images.saveFromUri(imageId, asset.uri);
+        await photoStore.upload("outfits", imageId, asset.uri);
         imageIds.push(imageId);
       }
 
@@ -495,7 +495,7 @@ function InspoCard({
   onPress: () => void;
   onActionsPress: () => void;
 }) {
-  const uri = imageUriForInspo(entry);
+  const source = imageSourceForInspo(entry, "thumb");
   return (
     <Pressable
       accessibilityRole="button"
@@ -504,9 +504,9 @@ function InspoCard({
       style={styles.inspoCard}
     >
       <View style={styles.inspoImageWrapper}>
-        {uri ? (
+        {source ? (
           <Image
-            source={{ uri }}
+            source={source}
             style={styles.inspoImage}
             contentFit="cover"
           />

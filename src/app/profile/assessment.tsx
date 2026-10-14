@@ -74,7 +74,9 @@ export default function AssessmentScreen() {
       const outfitImages: string[] = [];
       const outfitMeta: AssessmentOutfitMeta[] = [];
       for (const outfit of sample) {
-        const uri = outfit.imageIds[0] ? images.read(outfit.imageIds[0]) : null;
+        const uri = outfit.imageIds[0]
+          ? await images.localUri(outfit.imageIds[0])
+          : null;
         if (!uri) continue;
         outfitImages.push(await prepareAiImage(uri));
         outfitMeta.push({

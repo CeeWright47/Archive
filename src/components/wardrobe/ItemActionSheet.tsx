@@ -2,7 +2,7 @@ import { Image } from "expo-image";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
 import { BottomSheet } from "@/components/BottomSheet";
-import { imageUriFor, type Piece } from "@/storage/pieces";
+import { imageSourceFor, type Piece } from "@/storage/pieces";
 import { theme } from "@/theme/tokens";
 
 interface ItemActionSheetProps {
@@ -11,6 +11,7 @@ interface ItemActionSheetProps {
   onBuildFit: (piece: Piece) => void;
   onShowPairings: (piece: Piece) => void;
   onEdit: (piece: Piece) => void;
+  onReplacePhoto: (piece: Piece) => void;
   onRemove: (piece: Piece) => void;
 }
 
@@ -20,18 +21,19 @@ export function ItemActionSheet({
   onBuildFit,
   onShowPairings,
   onEdit,
+  onReplacePhoto,
   onRemove,
 }: ItemActionSheetProps) {
   if (!piece) return null;
-  const uri = imageUriFor(piece);
+  const source = imageSourceFor(piece, "thumb");
   const detailLine = [piece.color, piece.material].filter(Boolean).join(" · ");
 
   return (
     <BottomSheet onClose={onClose}>
       <View style={styles.header}>
         <View style={styles.thumbWrapper}>
-          {uri ? (
-            <Image source={{ uri }} style={styles.thumb} contentFit="cover" />
+          {source ? (
+            <Image source={source} style={styles.thumb} contentFit="cover" />
           ) : (
             <View style={[styles.thumb, styles.thumbFallback]} />
           )}
@@ -65,8 +67,14 @@ export function ItemActionSheet({
       <View style={styles.divider} />
       <ActionRow
         title="Edit details"
-        description="Change the name, category, color, material, and fit."
+        description="Change the name, brand, category, color, material, and fit."
         onPress={() => onEdit(piece)}
+      />
+      <View style={styles.divider} />
+      <ActionRow
+        title="Replace photo"
+        description="Swap in a sharper or better-lit photo. Details stay the same."
+        onPress={() => onReplacePhoto(piece)}
       />
       <View style={styles.divider} />
       <ActionRow

@@ -19,7 +19,7 @@ import { pieceFitsFor, type PieceFit } from "@/storage/fitVocabulary";
 import { MATERIALS } from "@/storage/materialVocabulary";
 import {
     PIECE_CATEGORIES,
-    imageUriFor,
+    imageSourceFor,
     type Piece,
     type PieceCategory,
 } from "@/storage/pieces";
@@ -52,7 +52,7 @@ export function PieceDetailSheet({
 
   if (!piece || !draft) return null;
   const currentPiece = piece;
-  const uri = imageUriFor(currentPiece);
+  const source = imageSourceFor(currentPiece, "full");
   const fitOptions = pieceFitsFor(draft.category);
 
   // Fit is persisted immediately because chip taps are independent of text edits.
@@ -103,8 +103,8 @@ export function PieceDetailSheet({
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.imageWrapper}>
-            {uri ? (
-              <Image source={{ uri }} style={styles.image} contentFit="cover" />
+            {source ? (
+              <Image source={source} style={styles.image} contentFit="cover" />
             ) : (
               <View style={[styles.image, styles.imageFallback]} />
             )}
