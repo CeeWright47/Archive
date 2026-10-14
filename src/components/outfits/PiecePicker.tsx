@@ -1,7 +1,14 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { useMemo, useState } from "react";
-import { Pressable, StyleSheet, Text, TextInput, View } from "react-native";
+import {
+    Pressable,
+    ScrollView,
+    StyleSheet,
+    Text,
+    TextInput,
+    View,
+} from "react-native";
 
 import { CategoryChips } from "@/components/wardrobe/CategoryChips";
 import {
@@ -87,79 +94,89 @@ export function PiecePicker({
   const countLabel = `${selected.length} piece${selected.length === 1 ? "" : "s"}`;
 
   return (
-    <View style={styles.container}>
-      <View style={styles.header}>
+    <>
+      <View style={styles.top}>
         <Text style={styles.title}>Tag pieces</Text>
+
+        <View style={styles.searchWrap}>
+          <Ionicons
+            name="search"
+            size={theme.spacing.md + 2}
+            color={theme.colors.textMuted}
+          />
+          <TextInput
+            style={styles.searchInput}
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Search name, brand, color…"
+            placeholderTextColor={theme.colors.textMuted}
+            autoCorrect={false}
+            clearButtonMode="while-editing"
+          />
+        </View>
+
+        <CategoryChips
+          categories={PIECE_CATEGORIES}
+          selected={category}
+          onSelect={setCategory}
+          counts={counts}
+          compact
+        />
+      </View>
+
+      <ScrollView
+        style={styles.list}
+        contentContainerStyle={styles.listContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        keyboardDismissMode="on-drag"
+      >
+        {selected.length > 0 && (
+          <View style={styles.group}>
+            <Text style={styles.groupLabel}>SELECTED</Text>
+            {selected.map((piece) => (
+              <PieceRow
+                key={piece.id}
+                piece={piece}
+                selected
+                suggested={suggestedIds.has(piece.id)}
+                onPress={() => handleToggle(piece.id)}
+              />
+            ))}
+          </View>
+        )}
+
+        <View style={styles.group}>
+          {selected.length > 0 && <Text style={styles.groupLabel}>CLOSET</Text>}
+          {results.length > 0 ? (
+            results.map((piece) => (
+              <PieceRow
+                key={piece.id}
+                piece={piece}
+                selected={false}
+                suggested={false}
+                onPress={() => handleToggle(piece.id)}
+              />
+            ))
+          ) : (
+            <Text style={styles.empty}>
+              {pieces.length === 0 ? "No wardrobe pieces yet." : "Nothing matches."}
+            </Text>
+          )}
+        </View>
+      </ScrollView>
+
+      <View style={styles.footer}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`Done, ${countLabel} selected`}
           onPress={onDone}
-          hitSlop={theme.spacing.xs}
           style={({ pressed }) => [styles.done, pressed && styles.pressed]}
         >
           <Text style={styles.doneText}>Done · {countLabel}</Text>
         </Pressable>
       </View>
-
-      <View style={styles.searchWrap}>
-        <Ionicons
-          name="search"
-          size={theme.spacing.md + 2}
-          color={theme.colors.textMuted}
-        />
-        <TextInput
-          style={styles.searchInput}
-          value={query}
-          onChangeText={setQuery}
-          placeholder="Search name, brand, color…"
-          placeholderTextColor={theme.colors.textMuted}
-          autoCorrect={false}
-          clearButtonMode="while-editing"
-        />
-      </View>
-
-      <CategoryChips
-        categories={PIECE_CATEGORIES}
-        selected={category}
-        onSelect={setCategory}
-        counts={counts}
-        compact
-      />
-
-      {selected.length > 0 && (
-        <View style={styles.group}>
-          <Text style={styles.groupLabel}>SELECTED</Text>
-          {selected.map((piece) => (
-            <PieceRow
-              key={piece.id}
-              piece={piece}
-              selected
-              suggested={suggestedIds.has(piece.id)}
-              onPress={() => handleToggle(piece.id)}
-            />
-          ))}
-        </View>
-      )}
-
-      <View style={styles.group}>
-        {selected.length > 0 && <Text style={styles.groupLabel}>CLOSET</Text>}
-        {results.length > 0 ? (
-          results.map((piece) => (
-            <PieceRow
-              key={piece.id}
-              piece={piece}
-              selected={false}
-              suggested={false}
-              onPress={() => handleToggle(piece.id)}
-            />
-          ))
-        ) : (
-          <Text style={styles.empty}>
-            {pieces.length === 0 ? "No wardrobe pieces yet." : "Nothing matches."}
-          </Text>
-        )}
-      </View>
-    </View>
+    </>
   );
 }
 
@@ -209,8 +226,26 @@ function PieceRow({
 const THUMB_SIZE = 44;
 
 const styles = StyleSheet.create({
-  container: {
+  // Title, search, and pills stay put; only the list scrolls, and Done is
+  // pinned to the bottom of the sheet.
+  top: {
     gap: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+    paddingBottom: theme.spacing.xs,
+  },
+  list: {
+    flexShrink: 1,
+  },
+  listContent: {
+    gap: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+    paddingBottom: theme.spacing.sm,
+  },
+  footer: {
+    paddingHorizontal: theme.spacing.md,
+    paddingTop: theme.spacing.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: theme.colors.border,
   },
   searchWrap: {
     flexDirection: "row",
@@ -277,12 +312,6 @@ const styles = StyleSheet.create({
     color: theme.colors.textMuted,
     paddingVertical: theme.spacing.sm,
   },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: theme.spacing.sm,
-  },
   title: {
     fontFamily: theme.fonts.serif,
     fontSize: theme.typography.title3.fontSize,
@@ -290,8 +319,8 @@ const styles = StyleSheet.create({
     color: theme.colors.text,
   },
   done: {
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.xs,
+    alignItems: "center",
+    paddingVertical: theme.spacing.sm,
     borderRadius: theme.radii.pill,
     backgroundColor: theme.colors.accent,
   },

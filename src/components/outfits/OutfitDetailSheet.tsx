@@ -136,19 +136,13 @@ export function OutfitDetailSheet({
   if (pickingPieces) {
     return (
       <BottomSheet onClose={onClose}>
-        <ScrollView
-          contentContainerStyle={styles.content}
-          showsVerticalScrollIndicator={false}
-          keyboardShouldPersistTaps="handled"
-        >
-          <PiecePicker
-            pieces={pieces}
-            selectedIds={draft.pieceIds}
-            suggestedIds={suggestedIds}
-            onToggle={togglePiece}
-            onDone={() => setPickingPieces(false)}
-          />
-        </ScrollView>
+        <PiecePicker
+          pieces={pieces}
+          selectedIds={draft.pieceIds}
+          suggestedIds={suggestedIds}
+          onToggle={togglePiece}
+          onDone={() => setPickingPieces(false)}
+        />
       </BottomSheet>
     );
   }
