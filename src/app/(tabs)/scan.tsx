@@ -2,6 +2,11 @@ import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { useNavigation } from "expo-router";
 import { useEffect, useRef, useState } from "react";
+import Animated, {
+    FadeIn,
+    FadeOut,
+    LinearTransition,
+} from "react-native-reanimated";
 import {
     ActivityIndicator,
     Alert,
@@ -37,6 +42,8 @@ export default function ScanScreen() {
 
   const [allWants, setAllWants] = useState<Want[]>([]);
   const [loadingWants, setLoadingWants] = useState(true);
+  // Accordion: at most one spotted item is open at a time.
+  const [expandedWantId, setExpandedWantId] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
 
   async function loadWants() {
@@ -58,6 +65,7 @@ export default function ScanScreen() {
       if (!navigation.isFocused()) return;
       setResult(null);
       setImageUri(null);
+      setExpandedWantId(null);
       scrollRef.current?.scrollTo({ y: 0, animated: true });
     });
     return unsubscribe;
@@ -190,6 +198,12 @@ export default function ScanScreen() {
               <WantCard
                 key={want.id}
                 want={want}
+                expanded={expandedWantId === want.id}
+                onToggleExpanded={() =>
+                  setExpandedWantId((current) =>
+                    current === want.id ? null : want.id,
+                  )
+                }
                 onToggleOwned={() => handleToggleOwned(want)}
                 onDismiss={() => handleDismissWant(want.id)}
               />
@@ -220,73 +234,110 @@ export default function ScanScreen() {
 
 function WantCard({
   want,
+  expanded,
+  onToggleExpanded,
   onToggleOwned,
   onDismiss,
 }: {
   want: Want;
+  expanded: boolean;
+  onToggleExpanded: () => void;
   onToggleOwned: () => void;
   onDismiss: () => void;
 }) {
   const uri = imageUriForWant(want);
   return (
-    <View style={styles.card}>
+    <Animated.View layout={LinearTransition.duration(180)} style={styles.card}>
       <Pressable
         accessibilityRole="button"
-        accessibilityLabel={`Dismiss ${want.item}`}
-        onPress={onDismiss}
-        style={styles.cardDismiss}
+        accessibilityState={{ expanded }}
+        accessibilityLabel={`${want.item}, ${want.score} out of 10 closet fit${want.owned ? ", bought" : ""}`}
+        accessibilityHint={expanded ? "Hides details" : "Shows details"}
+        onPress={onToggleExpanded}
+        style={({ pressed }) => [styles.cardHeader, pressed && styles.pressed]}
       >
-        <Ionicons name="close" size={16} color={theme.colors.textMuted} />
-      </Pressable>
-      <View style={styles.imageWrapper}>
-        {uri ? (
-          <Image source={{ uri }} style={styles.image} contentFit="cover" />
-        ) : (
-          <View style={[styles.image, styles.imageFallback]} />
-        )}
-      </View>
-      <View style={styles.cardBody}>
-        <View style={styles.cardHeader}>
+        <View style={styles.imageWrapper}>
+          {uri ? (
+            <Image source={{ uri }} style={styles.image} contentFit="cover" />
+          ) : (
+            <View style={[styles.image, styles.imageFallback]} />
+          )}
+        </View>
+        <View style={styles.cardTitle}>
           <Text style={styles.itemName} numberOfLines={2}>
             {want.item}
           </Text>
-          <Text style={styles.cardScore}>{want.score}/10</Text>
+          <View style={styles.cardMeta}>
+            <Text style={styles.cardScore}>{want.score}/10</Text>
+            {want.owned ? <Text style={styles.boughtTag}>BOUGHT</Text> : null}
+          </View>
         </View>
-        {want.reason.length > 0 && (
-          <Text style={styles.reason} numberOfLines={4}>
-            {want.reason}
-          </Text>
-        )}
-        <View style={styles.cardFooter}>
-          {want.price.length > 0 && (
-            <Text style={styles.price}>{want.price}</Text>
+        <Ionicons
+          name={expanded ? "chevron-up" : "chevron-down"}
+          size={theme.spacing.md + 2}
+          color={theme.colors.textMuted}
+        />
+      </Pressable>
+
+      {expanded ? (
+        <Animated.View
+          entering={FadeIn.duration(150)}
+          exiting={FadeOut.duration(100)}
+          style={styles.cardBody}
+        >
+          {want.reason.length > 0 && (
+            <Text style={styles.reason}>{want.reason}</Text>
           )}
-          <Pressable
-            accessibilityRole="button"
-            accessibilityLabel={
-              want.owned ? "Mark as not bought" : "Mark as bought"
-            }
-            onPress={onToggleOwned}
-            style={[styles.ownedButton, want.owned && styles.ownedButtonActive]}
-          >
-            <Ionicons
-              name={
-                want.owned ? "checkmark-circle" : "checkmark-circle-outline"
-              }
-              size={16}
-              color={
-                want.owned ? theme.colors.background : theme.colors.textMuted
-              }
-            />
-            <Text
-              style={[styles.ownedLabel, want.owned && styles.ownedLabelActive]}
-            >
-              {want.owned ? "Bought" : "Mark bought"}
-            </Text>
-          </Pressable>
-        </View>
-      </View>
-    </View>
+          <View style={styles.cardFooter}>
+            {want.price.length > 0 ? (
+              <Text style={styles.price}>{want.price}</Text>
+            ) : (
+              <View />
+            )}
+            <View style={styles.cardActions}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={`Remove ${want.item}`}
+                onPress={onDismiss}
+                hitSlop={theme.spacing.xs}
+                style={styles.removeButton}
+              >
+                <Text style={styles.removeLabel}>Remove</Text>
+              </Pressable>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityLabel={
+                  want.owned ? "Mark as not bought" : "Mark as bought"
+                }
+                onPress={onToggleOwned}
+                style={[
+                  styles.ownedButton,
+                  want.owned && styles.ownedButtonActive,
+                ]}
+              >
+                <Ionicons
+                  name={
+                    want.owned ? "checkmark-circle" : "checkmark-circle-outline"
+                  }
+                  size={16}
+                  color={
+                    want.owned ? theme.colors.background : theme.colors.textMuted
+                  }
+                />
+                <Text
+                  style={[
+                    styles.ownedLabel,
+                    want.owned && styles.ownedLabelActive,
+                  ]}
+                >
+                  {want.owned ? "Bought" : "Mark bought"}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </Animated.View>
+      ) : null}
+    </Animated.View>
   );
 }
 
@@ -362,20 +413,12 @@ const styles = StyleSheet.create({
     gap: theme.spacing.sm,
   },
   card: {
-    flexDirection: "row",
-    gap: theme.spacing.sm,
+    overflow: "hidden",
     padding: theme.spacing.sm,
     borderRadius: theme.radii.lg,
     backgroundColor: theme.colors.backgroundElevated,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: theme.colors.border,
-  },
-  cardDismiss: {
-    position: "absolute",
-    top: theme.spacing.xs,
-    right: theme.spacing.xs,
-    padding: theme.spacing.xxs,
-    zIndex: 1,
   },
   imageWrapper: {
     borderRadius: theme.radii.md,
@@ -383,21 +426,55 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.background,
   },
   image: {
-    width: 88,
-    height: 88,
+    width: 56,
+    height: 56,
   },
   imageFallback: {
     backgroundColor: theme.colors.background,
   },
-  cardBody: {
+  cardHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing.sm,
+  },
+  pressed: {
+    opacity: 0.7,
+  },
+  cardTitle: {
     flex: 1,
     gap: theme.spacing.xxs,
   },
-  cardHeader: {
+  cardMeta: {
     flexDirection: "row",
-    justifyContent: "space-between",
+    alignItems: "center",
     gap: theme.spacing.xs,
-    paddingRight: theme.spacing.lg,
+  },
+  boughtTag: {
+    fontFamily: theme.fonts.mono,
+    fontSize: theme.typography.caption2.fontSize,
+    lineHeight: theme.typography.caption2.lineHeight,
+    letterSpacing: theme.tracking.caption,
+    color: theme.colors.textMuted,
+  },
+  cardBody: {
+    gap: theme.spacing.xs,
+    marginTop: theme.spacing.sm,
+    paddingTop: theme.spacing.sm,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderTopColor: theme.colors.border,
+  },
+  cardActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing.md,
+  },
+  removeButton: {
+    paddingVertical: theme.spacing.xxs,
+  },
+  removeLabel: {
+    fontSize: theme.typography.caption1.fontSize,
+    lineHeight: theme.typography.caption1.lineHeight,
+    color: theme.colors.danger,
   },
   itemName: {
     flex: 1,
@@ -413,8 +490,8 @@ const styles = StyleSheet.create({
     fontWeight: theme.typography.headline.fontWeight,
   },
   reason: {
-    fontSize: theme.typography.caption1.fontSize,
-    lineHeight: theme.typography.caption1.lineHeight,
+    fontSize: theme.typography.subheadline.fontSize,
+    lineHeight: theme.typography.subheadline.lineHeight,
     color: theme.colors.textMuted,
   },
   cardFooter: {
