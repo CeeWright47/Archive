@@ -18,10 +18,11 @@ import { ai, PieceLimitError } from "@/ai";
 import {
     FREE_PIECE_LIMIT,
     FREE_PIECE_WARNING_AT,
-    catalogPiecesFromLibrary,
+    catalogPieces,
 } from "@/catalog/catalogPieces";
 import { ArchiveLoadingScreen } from "@/components/ArchiveLoadingScreen";
 import { BottomDock } from "@/components/BottomDock";
+import { PhotoSourceSheet } from "@/components/PhotoSourceSheet";
 import { SkeletonGrid } from "@/components/SkeletonGrid";
 import { SortSheet } from "@/components/SortSheet";
 import { UpgradeSheet } from "@/components/UpgradeSheet";
@@ -107,6 +108,7 @@ export default function WardrobeScreen() {
   const [editingPieceId, setEditingPieceId] = useState<string | null>(null);
   const [actionsPieceId, setActionsPieceId] = useState<string | null>(null);
   const [replacingPhoto, setReplacingPhoto] = useState(false);
+  const [choosingSource, setChoosingSource] = useState(false);
   const [buildingFitFor, setBuildingFitFor] = useState<Piece | null>(null);
   const [adding, setAdding] = useState(false);
   const [plan, setPlan] = useState<Plan>("free");
@@ -252,14 +254,19 @@ export default function WardrobeScreen() {
     setHeaderHeight(Math.ceil(event.nativeEvent.layout.height));
   }, []);
 
-  const handleAddPieces = useCallback(async () => {
+  const handleAddPieces = useCallback(() => {
     if (plan === "free" && allPieces.length >= FREE_PIECE_LIMIT) {
       setUpgradeOpen(true);
       return;
     }
+    setChoosingSource(true);
+  }, [allPieces.length, plan]);
+
+  const handlePickSource = useCallback(async (source: "camera" | "library") => {
+    setChoosingSource(false);
     setAdding(true);
     try {
-      const created = await catalogPiecesFromLibrary((piece) =>
+      const created = await catalogPieces(source, (piece) =>
         setAllPieces((current) => [...current, piece]),
       );
       if (created[0]) {
@@ -277,7 +284,7 @@ export default function WardrobeScreen() {
     } finally {
       setAdding(false);
     }
-  }, [allPieces.length, plan]);
+  }, []);
 
   const handleSavePiece = useCallback(async (updated: Piece) => {
     await pieces.save(updated);
@@ -555,6 +562,13 @@ export default function WardrobeScreen() {
           setActionsPieceId(null);
           confirmRemoveFromActions(piece);
         }}
+      />
+      <PhotoSourceSheet
+        visible={choosingSource}
+        title="Add pieces"
+        onClose={() => setChoosingSource(false)}
+        onPickCamera={() => handlePickSource("camera")}
+        onPickLibrary={() => handlePickSource("library")}
       />
       <UpgradeSheet
         visible={upgradeOpen}
