@@ -36,7 +36,12 @@ import {
     type PieceFit,
 } from "@/storage/fitVocabulary";
 import { outfits } from "@/storage/outfits";
-import { pieces, type Piece, type PieceCategory } from "@/storage/pieces";
+import {
+    brandsFrom,
+    pieces,
+    type Piece,
+    type PieceCategory,
+} from "@/storage/pieces";
 import { profileStore, type Plan } from "@/storage/profile";
 import type { Subcategory } from "@/storage/subcategories";
 import {
@@ -68,6 +73,7 @@ function matchesQuery(piece: Piece, query: string): boolean {
   if (!query) return true;
   const haystack = [
     piece.name,
+    piece.brand ?? "",
     piece.color,
     piece.material,
     piece.subcategory ?? "",
@@ -398,6 +404,7 @@ export default function WardrobeScreen() {
     [inCategory],
   );
 
+  const brandOptions = useMemo(() => brandsFrom(allPieces), [allPieces]);
   const editingPiece =
     allPieces.find((piece) => piece.id === editingPieceId) ?? null;
   const actionsPiece =
@@ -498,6 +505,7 @@ export default function WardrobeScreen() {
 
       <PieceDetailSheet
         piece={editingPiece}
+        brandOptions={brandOptions}
         onClose={() => setEditingPieceId(null)}
         onSave={handleSavePiece}
         onDelete={handleDeletePiece}

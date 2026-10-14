@@ -36,6 +36,7 @@ export async function catalogPiecesFromLibrary(
     const piece: Piece = {
       id,
       name: catalog.name || "New piece",
+      brand: catalog.brand?.trim() || null,
       category: AI_CATEGORY_MAP[catalog.category] ?? DEFAULT_CATEGORY,
       subcategory: null,
       color: catalog.color,

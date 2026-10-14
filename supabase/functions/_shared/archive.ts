@@ -81,12 +81,20 @@ export async function inputsHash(input: {
   pieceIds: string[];
   inspoIds: string[];
   outfitIds: string[];
+  /** Outfit id → 1-5 rating, rated outfits only. */
+  outfitRatings?: Record<string, number>;
 }): Promise<string> {
+  const ratings = Object.entries(input.outfitRatings ?? {}).sort(([a], [b]) =>
+    a.localeCompare(b),
+  );
   const payload = JSON.stringify({
     stated_style: input.styleText,
     closet_piece_ids: [...input.pieceIds].sort(),
     inspo_image_ids: [...input.inspoIds].sort(),
     outfit_ids: [...input.outfitIds].sort(),
+    // Only present once something is rated, so assessments run before
+    // ratings existed keep the same hash and don't all read as stale.
+    ...(ratings.length > 0 ? { outfit_ratings: ratings } : {}),
   });
   const digest = await crypto.subtle.digest(
     "SHA-256",

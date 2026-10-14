@@ -7,7 +7,8 @@ INPUTS
 1. CLOSET — the garments they own
 2. STATED STYLE — how they describe their own style, in their words
 3. INSPO — saved inspiration images
-4. SELF_FITS — photos of outfits they actually wore
+4. SELF_FITS — photos of outfits they actually wore, each with the
+   date worn, occasion, and the person's 1-5 rating where present
 
 These four sources measure different things. Closet is ownership.
 Stated style is self-concept. Inspo is aspiration. Self-fits are
@@ -30,6 +31,10 @@ rank it lower, do not dismiss it. Recency matters — lanes appearing in
 recent fits carry more weight. If self-fits are absent or sparse, say
 so in the profile's read and rank on closet mass alone rather than
 inventing confidence you do not have.
+Ratings weight the evidence. A highly rated outfit is stronger
+evidence for its lane than an unrated one; a low-rated outfit is still
+evidence the lane exists, just weaker confirmation. Ratings never
+create or remove a lane on their own.
 
 Step 3 — Name the primary from the stated style.
 The person's own description sets the thesis of the primary profile.

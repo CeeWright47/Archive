@@ -31,6 +31,15 @@ export function imageUriForOutfit(outfit: Outfit): string | null {
   return coverImageId ? images.read(coverImageId) : null;
 }
 
+/** Outfit id → rating, rated outfits only. An assessment input. */
+export function outfitRatingsFrom(list: Outfit[]): Record<string, number> {
+  const ratings: Record<string, number> = {};
+  for (const outfit of list) {
+    if (outfit.rating != null) ratings[outfit.id] = outfit.rating;
+  }
+  return ratings;
+}
+
 export const outfits = {
   async list(): Promise<Outfit[]> {
     const stored = await storage.get<Outfit[]>(OUTFITS_KEY);

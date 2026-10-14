@@ -26,8 +26,12 @@ import {
 import { subcategoriesFor } from "@/storage/subcategories";
 import { theme } from "@/theme/tokens";
 
+const MAX_BRAND_SUGGESTIONS = 4;
+
 interface PieceDetailSheetProps {
   piece: Piece | null;
+  /** Brands already in the closet, offered as autocomplete. */
+  brandOptions: readonly string[];
   onClose: () => void;
   onSave: (piece: Piece) => Promise<void> | void;
   onDelete: (id: string) => Promise<void> | void;
@@ -35,6 +39,7 @@ interface PieceDetailSheetProps {
 
 export function PieceDetailSheet({
   piece,
+  brandOptions,
   onClose,
   onSave,
   onDelete,
@@ -113,6 +118,22 @@ export function PieceDetailSheet({
                 onChangeText={(name) => setDraft({ ...draft, name })}
                 placeholder="Piece name"
                 placeholderTextColor={theme.colors.textMuted}
+              />
+            </Field>
+            <Field label="Brand">
+              <TextInput
+                style={styles.input}
+                value={draft.brand ?? ""}
+                onChangeText={(brand) => setDraft({ ...draft, brand })}
+                placeholder="Not set"
+                placeholderTextColor={theme.colors.textMuted}
+                autoCapitalize="words"
+                autoCorrect={false}
+              />
+              <BrandSuggestions
+                query={draft.brand ?? ""}
+                options={brandOptions}
+                onSelect={(brand) => setDraft({ ...draft, brand })}
               />
             </Field>
             <Field label="Rating">
@@ -213,6 +234,45 @@ export function PieceDetailSheet({
           </View>
         </ScrollView>
     </BottomSheet>
+  );
+}
+
+function BrandSuggestions({
+  query,
+  options,
+  onSelect,
+}: {
+  query: string;
+  options: readonly string[];
+  onSelect: (brand: string) => void;
+}) {
+  const typed = query.trim().toLowerCase();
+  if (!typed) return null;
+  const matches = options
+    .filter((option) => {
+      const candidate = option.toLowerCase();
+      return candidate !== typed && candidate.startsWith(typed);
+    })
+    .slice(0, MAX_BRAND_SUGGESTIONS);
+  if (matches.length === 0) return null;
+
+  return (
+    <View style={styles.suggestions}>
+      {matches.map((brand) => (
+        <Pressable
+          key={brand}
+          accessibilityRole="button"
+          accessibilityLabel={`Use brand ${brand}`}
+          onPress={() => onSelect(brand)}
+          style={({ pressed }) => [
+            styles.suggestion,
+            pressed && styles.suggestionPressed,
+          ]}
+        >
+          <Text style={styles.suggestionText}>{brand}</Text>
+        </Pressable>
+      ))}
+    </View>
   );
 }
 
@@ -317,6 +377,28 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.caption1.fontSize,
     lineHeight: theme.typography.caption1.lineHeight,
     color: theme.colors.textMuted,
+  },
+  suggestions: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: theme.spacing.xs,
+    marginTop: theme.spacing.xxs,
+  },
+  suggestion: {
+    paddingHorizontal: theme.spacing.sm,
+    paddingVertical: theme.spacing.xxs + 2,
+    borderRadius: theme.radii.pill,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.background,
+  },
+  suggestionPressed: {
+    opacity: 0.7,
+  },
+  suggestionText: {
+    fontSize: theme.typography.footnote.fontSize,
+    lineHeight: theme.typography.footnote.lineHeight,
+    color: theme.colors.text,
   },
   input: {
     fontSize: theme.typography.body.fontSize,

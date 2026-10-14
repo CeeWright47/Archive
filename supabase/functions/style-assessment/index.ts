@@ -15,6 +15,40 @@ import {
 
 const RANKS = ["primary", "secondary", "tertiary", "quaternary"];
 
+function validRating(value: unknown): number | null {
+  return typeof value === "number" &&
+    Number.isInteger(value) &&
+    value >= 1 &&
+    value <= 5
+    ? value
+    : null;
+}
+
+function parseRatings(value: unknown): Record<string, number> {
+  if (!value || typeof value !== "object") return {};
+  const ratings: Record<string, number> = {};
+  for (const [id, rating] of Object.entries(value)) {
+    const valid = validRating(rating);
+    if (valid !== null) ratings[id] = valid;
+  }
+  return ratings;
+}
+
+function selfFitLabel(index: number, meta: unknown): string {
+  const fields =
+    meta && typeof meta === "object" ? (meta as Record<string, unknown>) : {};
+  const parts = [`Self-fit ${index + 1}`];
+  if (typeof fields.dateWorn === "string" && fields.dateWorn) {
+    parts.push(`worn ${fields.dateWorn}`);
+  }
+  if (typeof fields.occasion === "string" && fields.occasion) {
+    parts.push(`occasion: ${fields.occasion}`);
+  }
+  const rating = validRating(fields.rating);
+  parts.push(rating !== null ? `rated ${rating}/5` : "unrated");
+  return parts.join(" · ");
+}
+
 serveWorkflow(async ({ body, supabase, user }) => {
   if (body.checkOnly !== true) {
     const [
@@ -49,11 +83,16 @@ serveWorkflow(async ({ body, supabase, user }) => {
   const outfitImages = Array.isArray(body.outfitImages)
     ? body.outfitImages.slice(0, 8)
     : [];
+  // Parallel to outfitImages. Older clients don't send it.
+  const outfitMeta: unknown[] = Array.isArray(body.outfitMeta)
+    ? body.outfitMeta
+    : [];
   const hash = await inputsHash({
     styleText,
     pieceIds: pieces.map((piece) => piece.id),
     inspoIds: inspo.map((item) => item.id),
     outfitIds,
+    outfitRatings: parseRatings(body.outfitRatings),
   });
   if (body.checkOnly === true) return { inputs_hash: hash };
   const { data: previous, error } = await supabase
@@ -82,10 +121,13 @@ serveWorkflow(async ({ body, supabase, user }) => {
       type: "text",
       text: `INSPO\n${inspo.length ? inspo.map((item) => `- ${item.vibe ?? ""}`).join("\n") : "(No inspo images yet.)"}`,
     },
-    ...outfitImages.map(imageBlock),
+    ...outfitImages.flatMap((image, index): AnthropicContentBlock[] => [
+      { type: "text", text: selfFitLabel(index, outfitMeta[index]) },
+      imageBlock(image),
+    ]),
     {
       type: "text",
-      text: `SELF_FITS\n${outfitIds.length ? `${outfitIds.length} self-outfit photos supplied above.` : "(No self-outfit photos logged yet.)"}\n\nPREVIOUS PROFILES\n${priorProfiles.length ? priorProfiles.map((profile: any) => `- id ${profile.id}: "${profile.headline}" — ${profile.read}`).join("\n") : "(No previous assessment.)"}`,
+      text: `SELF_FITS\n${outfitImages.length ? `The ${outfitImages.length} most recent of ${outfitIds.length} self-outfit photos are supplied above, each labelled with date worn, occasion, and rating.` : "(No self-outfit photos logged yet.)"}\n\nPREVIOUS PROFILES\n${priorProfiles.length ? priorProfiles.map((profile: any) => `- id ${profile.id}: "${profile.headline}" — ${profile.read}`).join("\n") : "(No previous assessment.)"}`,
     },
   ];
   const result = await askAnthropic(ASSESSMENT_SYSTEM_PROMPT, content, 4096);

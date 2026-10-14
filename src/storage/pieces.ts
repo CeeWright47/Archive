@@ -18,6 +18,7 @@ export type PieceCategory = (typeof PIECE_CATEGORIES)[number];
 export interface Piece {
   id: string;
   name: string;
+  brand: string | null;
   category: PieceCategory;
   subcategory: Subcategory | null;
   color: string;
@@ -32,6 +33,7 @@ export interface Piece {
 interface PieceRow {
   id: string;
   name: string | null;
+  brand: string | null;
   category: string | null;
   subcategory: string | null;
   color: string | null;
@@ -84,6 +86,7 @@ function mapRowToPiece(row: PieceRow): Piece {
   return {
     id: row.id,
     name: row.name ?? "",
+    brand: row.brand?.trim() || null,
     category,
     subcategory: normalizeSubcategory(category, row.subcategory),
     color: row.color ?? "",
@@ -107,6 +110,17 @@ async function cacheImageIfNeeded(
   }
   if (images.read(id)) return;
   images.saveFromBase64(id, stripDataUriPrefix(image));
+}
+
+/** Distinct brands already in the closet, for autocomplete. */
+export function brandsFrom(list: Piece[]): string[] {
+  const byKey = new Map<string, string>();
+  for (const piece of list) {
+    if (piece.brand) byKey.set(piece.brand.toLowerCase(), piece.brand);
+  }
+  return [...byKey.values()].sort((a, b) =>
+    a.localeCompare(b, undefined, { sensitivity: "base" }),
+  );
 }
 
 export const pieces = {
@@ -134,6 +148,7 @@ export const pieces = {
       id: piece.id,
       user_id: user.id,
       name: piece.name,
+      brand: piece.brand?.trim() || null,
       category: piece.category,
       subcategory: piece.subcategory,
       color: piece.color,

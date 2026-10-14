@@ -53,7 +53,8 @@ outfits that already carry a tag, from any source.
 ## Stale check
 
 Write `inputs_hash` on the assessment record — a hash of the stated
-style text, closet piece ids, inspo image ids, and outfit ids. The
+style text, closet piece ids, inspo image ids, outfit ids, and outfit
+ratings, so re-rating an outfit marks the assessment stale. The
 Style Assessment screen shows the "inputs changed" line only when the
 current hash differs from the stored one, and only when an assessment
 exists.
@@ -62,7 +63,8 @@ exists.
 
 Send as the system prompt. The four inputs are appended as user
 content: stated style text, closet piece list, inspo images, and up to
-8 self-outfit photos.
+8 self-outfit photos, each labelled with its date worn, occasion, and
+rating (1-5, where the person has rated it).
 
 ```
 You are analyzing a person's wardrobe to identify their style
@@ -74,7 +76,8 @@ INPUTS
 1. CLOSET — the garments they own
 2. STATED STYLE — how they describe their own style, in their words
 3. INSPO — saved inspiration images
-4. SELF_FITS — photos of outfits they actually wore
+4. SELF_FITS — photos of outfits they actually wore, each with the
+   date worn, occasion, and the person's 1-5 rating where present
 
 These four sources measure different things. Closet is ownership.
 Stated style is self-concept. Inspo is aspiration. Self-fits are
@@ -97,6 +100,10 @@ rank it lower, do not dismiss it. Recency matters — lanes appearing in
 recent fits carry more weight. If self-fits are absent or sparse, say
 so in the profile's read and rank on closet mass alone rather than
 inventing confidence you do not have.
+Ratings weight the evidence. A highly rated outfit is stronger
+evidence for its lane than an unrated one; a low-rated outfit is still
+evidence the lane exists, just weaker confirmation. Ratings never
+create or remove a lane on their own.
 
 Step 3 — Name the primary from the stated style.
 The person's own description sets the thesis of the primary profile.
