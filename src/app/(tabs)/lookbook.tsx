@@ -24,7 +24,9 @@ import { PhotoSourceSheet } from "@/components/PhotoSourceSheet";
 import { SkeletonGrid } from "@/components/SkeletonGrid";
 import { SortSheet } from "@/components/SortSheet";
 import { pickImage, type PickedImage } from "@/media/pickImage";
+import { todayString } from "@/storage/dates";
 import { fits, type Fit } from "@/storage/fits";
+import { images } from "@/storage/images";
 import { imageSourceForInspo, inspo, type InspoImage } from "@/storage/inspo";
 import {
     LOOKBOOK_SORT_OPTIONS,
@@ -40,13 +42,10 @@ import {
 } from "@/storage/outfits";
 import { pieces, type Piece } from "@/storage/pieces";
 import { photoStore } from "@/storage/photoStore";
+import { profileStore, type Plan } from "@/storage/profile";
 import { theme } from "@/theme/tokens";
 
 type LookbookTab = "inspiration" | "myStyle";
-
-function today(): string {
-  return new Date().toISOString().slice(0, 10);
-}
 
 export default function LookbookScreen() {
   const router = useRouter();
@@ -78,6 +77,8 @@ export default function LookbookScreen() {
   const [newOutfitId, setNewOutfitId] = useState<string | null>(null);
   const [addingOutfit, setAddingOutfit] = useState(false);
   const [choosingSource, setChoosingSource] = useState(false);
+  // Until the plan loads, treat the account as free: no AI suggestions.
+  const [plan, setPlan] = useState<Plan>("free");
 
   async function load() {
     try {
@@ -97,6 +98,10 @@ export default function LookbookScreen() {
 
   useEffect(() => {
     load().finally(() => setLoading(false));
+    profileStore
+      .getUserProfile()
+      .then((profile) => setPlan(profile.plan))
+      .catch(() => {});
     Promise.all([
       lookbookSort.get("inspiration"),
       lookbookSort.get("myStyle"),
@@ -196,6 +201,14 @@ export default function LookbookScreen() {
     }
   }
 
+  const suggestOutfitPieces = useCallback(async (outfit: Outfit) => {
+    const [coverImageId] = outfit.imageIds;
+    const uri = coverImageId ? await images.localUri(coverImageId) : null;
+    if (!uri) return [];
+    const result = await ai.matchOutfitPieces(await prepareAiImage(uri));
+    return result.matches.map((match) => match.piece_id);
+  }, []);
+
   const savePickedOutfitImages = useCallback(async (picked: PickedImage[]) => {
     if (picked.length === 0) return;
     setAddingOutfit(true);
@@ -213,7 +226,7 @@ export default function LookbookScreen() {
         userId: null,
         sourceType: "self-photo",
         imageIds,
-        dateWorn: today(),
+        dateWorn: todayString(),
         pieceIds: [],
         profileTag: null,
         occasion: "",
@@ -456,6 +469,7 @@ export default function LookbookScreen() {
             }}
             onSave={handleSaveOutfit}
             onDelete={handleDeleteOutfit}
+            onSuggestPieces={plan === "free" ? undefined : suggestOutfitPieces}
           />
         </>
       )}

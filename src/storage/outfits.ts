@@ -2,6 +2,7 @@ import type { ImageSource } from "expo-image";
 
 import { supabase } from "@/lib/supabase";
 
+import { normalizeDateString } from "./dates";
 import { images, type ImageVariant } from "./images";
 import { storage } from "./index";
 import { photoStore } from "./photoStore";
@@ -111,7 +112,8 @@ async function upsertRow(outfit: Outfit, userId: string): Promise<void> {
     image_paths: outfit.imageIds.map((imageId) =>
       photoPathFor(userId, imageId),
     ),
-    date_worn: outfit.dateWorn || null,
+    // Older device-only outfits may hold free text here; the column is a date.
+    date_worn: normalizeDateString(outfit.dateWorn) || null,
     occasion: outfit.occasion,
     note: outfit.note,
     piece_ids: outfit.pieceIds,

@@ -1,18 +1,22 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
+    ActivityIndicator,
     Alert,
     Pressable,
     ScrollView,
     StyleSheet,
     Text,
     TextInput,
+    useWindowDimensions,
     View,
 } from "react-native";
 
 import { BottomSheet } from "@/components/BottomSheet";
+import { PiecePicker } from "@/components/outfits/PiecePicker";
 import { StarRating } from "@/components/StarRating";
+import { formatDate, normalizeDateString } from "@/storage/dates";
 import { images } from "@/storage/images";
 import type { Outfit } from "@/storage/outfits";
 import type { Piece } from "@/storage/pieces";
@@ -25,6 +29,11 @@ interface OutfitDetailSheetProps {
   onClose: () => void;
   onSave: (outfit: Outfit) => Promise<void> | void;
   onDelete: (id: string) => Promise<void> | void;
+  /**
+   * Returns closet piece ids the AI sees in the outfit's cover photo. Omitted
+   * for free accounts, which tag manually.
+   */
+  onSuggestPieces?: (outfit: Outfit) => Promise<string[]>;
 }
 
 export function OutfitDetailSheet({
@@ -34,15 +43,55 @@ export function OutfitDetailSheet({
   onClose,
   onSave,
   onDelete,
+  onSuggestPieces,
 }: OutfitDetailSheetProps) {
   const [editing, setEditing] = useState(startInEditMode);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
   const [draft, setDraft] = useState(outfit);
+  const [pickingPieces, setPickingPieces] = useState(false);
+  // AI suggestions are pre-selected in the draft but stay marked until the
+  // person saves; nothing is written without that Save.
+  const [suggestedIds, setSuggestedIds] = useState<ReadonlySet<string>>(
+    new Set(),
+  );
+  const [suggesting, setSuggesting] = useState(false);
+  const suggestionFor = useRef<string | null>(null);
+
+  async function suggestPieces(target: Outfit) {
+    if (!onSuggestPieces) return;
+    suggestionFor.current = target.id;
+    setSuggesting(true);
+    let ids: string[] = [];
+    try {
+      ids = await onSuggestPieces(target);
+    } catch (error) {
+      // Suggestions are optional; manual tagging carries on regardless.
+      console.warn("[outfits] piece suggestions failed", error);
+    }
+    if (suggestionFor.current !== target.id) return;
+    setSuggesting(false);
+    if (ids.length === 0) return;
+    setDraft((current) => {
+      if (!current || current.id !== target.id) return current;
+      const added = ids.filter((id) => !current.pieceIds.includes(id));
+      setSuggestedIds(new Set(added));
+      return { ...current, pieceIds: [...current.pieceIds, ...added] };
+    });
+  }
 
   useEffect(() => {
     setDraft(outfit);
     setEditing(startInEditMode);
     setConfirmingDelete(false);
+    setPickingPieces(false);
+    setSuggestedIds(new Set());
+    setSuggesting(false);
+    suggestionFor.current = null;
+    // A freshly logged outfit opens in edit mode with nothing tagged yet.
+    if (outfit && startInEditMode && outfit.pieceIds.length === 0) {
+      suggestPieces(outfit);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [outfit, startInEditMode]);
 
   if (!outfit || !draft) return null;
@@ -53,10 +102,16 @@ export function OutfitDetailSheet({
 
   function togglePiece(id: string) {
     if (!draft) return;
-    const pieceIds = draft.pieceIds.includes(id)
+    const removing = draft.pieceIds.includes(id);
+    const pieceIds = removing
       ? draft.pieceIds.filter((pieceId) => pieceId !== id)
       : [...draft.pieceIds, id];
     setDraft({ ...draft, pieceIds });
+    if (removing && suggestedIds.has(id)) {
+      setSuggestedIds(
+        new Set([...suggestedIds].filter((pieceId) => pieceId !== id)),
+      );
+    }
   }
 
   async function handleSave() {
@@ -64,10 +119,11 @@ export function OutfitDetailSheet({
     try {
       await onSave({
         ...draft,
-        dateWorn: draft.dateWorn.trim(),
+        dateWorn: normalizeDateString(draft.dateWorn),
         occasion: draft.occasion.trim(),
         note: draft.note.trim(),
       });
+      setSuggestedIds(new Set());
       setEditing(false);
     } catch (error) {
       Alert.alert(
@@ -77,34 +133,37 @@ export function OutfitDetailSheet({
     }
   }
 
+  if (pickingPieces) {
+    return (
+      <BottomSheet onClose={onClose}>
+        <ScrollView
+          contentContainerStyle={styles.content}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
+        >
+          <PiecePicker
+            pieces={pieces}
+            selectedIds={draft.pieceIds}
+            suggestedIds={suggestedIds}
+            onToggle={togglePiece}
+            onDone={() => setPickingPieces(false)}
+          />
+        </ScrollView>
+      </BottomSheet>
+    );
+  }
+
+  const draftPieces = draft.pieceIds
+    .map((id) => pieces.find((piece) => piece.id === id))
+    .filter((piece): piece is Piece => piece !== undefined);
+
   return (
     <BottomSheet onClose={onClose}>
       <ScrollView
           contentContainerStyle={styles.content}
           showsVerticalScrollIndicator={false}
         >
-          <ScrollView
-            horizontal
-            showsHorizontalScrollIndicator={false}
-            contentContainerStyle={styles.photos}
-          >
-            {currentOutfit.imageIds.map((imageId) => {
-              const source = images.source(imageId, "full");
-              return source ? (
-                <Image
-                  key={imageId}
-                  source={source}
-                  style={styles.image}
-                  contentFit="cover"
-                />
-              ) : (
-                <View
-                  key={imageId}
-                  style={[styles.image, styles.imageFallback]}
-                />
-              );
-            })}
-          </ScrollView>
+          <PhotoCarousel imageIds={currentOutfit.imageIds} />
 
           {editing ? (
             <View style={styles.fields}>
@@ -144,36 +203,87 @@ export function OutfitDetailSheet({
                 />
               </Field>
               <Field label="Pieces">
-                {pieces.length > 0 ? (
+                {suggesting ? (
+                  <View style={styles.suggestingRow}>
+                    <ActivityIndicator color={theme.colors.accent} />
+                    <Text style={styles.mutedValue}>
+                      Finding pieces in your photo…
+                    </Text>
+                  </View>
+                ) : null}
+                {draftPieces.length > 0 ? (
                   <View style={styles.pieceList}>
-                    {pieces.map((piece) => {
-                      const selected = draft.pieceIds.includes(piece.id);
+                    {draftPieces.map((piece) => {
+                      const suggested = suggestedIds.has(piece.id);
                       return (
                         <Pressable
                           key={piece.id}
-                          accessibilityRole="checkbox"
-                          accessibilityState={{ checked: selected }}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Remove ${piece.name}${suggested ? ", suggested" : ""}`}
                           onPress={() => togglePiece(piece.id)}
                           style={[
                             styles.pieceChip,
-                            selected && styles.pieceChipSelected,
+                            suggested
+                              ? styles.pieceChipSuggested
+                              : styles.pieceChipSelected,
                           ]}
                         >
+                          {suggested ? (
+                            <Text style={styles.suggestedTag}>SUGGESTED</Text>
+                          ) : null}
                           <Text
                             style={[
                               styles.pieceChipText,
-                              selected && styles.pieceChipTextSelected,
+                              !suggested && styles.pieceChipTextSelected,
                             ]}
+                            numberOfLines={1}
                           >
                             {piece.name}
                           </Text>
+                          <Ionicons
+                            name="close"
+                            size={theme.spacing.md}
+                            color={
+                              suggested
+                                ? theme.colors.text
+                                : theme.colors.background
+                            }
+                          />
                         </Pressable>
                       );
                     })}
                   </View>
-                ) : (
-                  <Text style={styles.mutedValue}>No wardrobe pieces yet</Text>
-                )}
+                ) : !suggesting ? (
+                  <Text style={styles.mutedValue}>No pieces tagged</Text>
+                ) : null}
+                {suggestedIds.size > 0 ? (
+                  <Text style={styles.helper}>
+                    Suggested from your photo. Tap one to remove it; Save keeps
+                    the rest.
+                  </Text>
+                ) : null}
+                <View style={styles.pieceActions}>
+                  <Pressable
+                    accessibilityRole="button"
+                    onPress={() => setPickingPieces(true)}
+                    hitSlop={theme.spacing.xs}
+                  >
+                    <Text style={styles.link}>
+                      {draftPieces.length > 0 ? "Edit pieces" : "Tag pieces"}
+                    </Text>
+                  </Pressable>
+                  {onSuggestPieces &&
+                  !suggesting &&
+                  draft.pieceIds.length === 0 ? (
+                    <Pressable
+                      accessibilityRole="button"
+                      onPress={() => suggestPieces(currentOutfit)}
+                      hitSlop={theme.spacing.xs}
+                    >
+                      <Text style={styles.link}>Suggest from photo</Text>
+                    </Pressable>
+                  ) : null}
+                </View>
               </Field>
               <Pressable
                 accessibilityRole="checkbox"
@@ -193,7 +303,9 @@ export function OutfitDetailSheet({
             </View>
           ) : (
             <View style={styles.fields}>
-              <Text style={styles.date}>{currentOutfit.dateWorn}</Text>
+              <Text style={styles.date}>
+                {formatDate(currentOutfit.dateWorn)}
+              </Text>
               <Text style={styles.title}>
                 {currentOutfit.occasion || "Everyday outfit"}
               </Text>
@@ -269,6 +381,67 @@ export function OutfitDetailSheet({
   );
 }
 
+// Full sheet width at each photo's own shape, capped at half the screen
+// height (fitted, not cropped, past that). Several photos swipe.
+function PhotoCarousel({ imageIds }: { imageIds: string[] }) {
+  const { height: screenHeight } = useWindowDimensions();
+  const [width, setWidth] = useState(0);
+  const [ratios, setRatios] = useState<Record<string, number>>({});
+  const [page, setPage] = useState(0);
+  const maxHeight = screenHeight * 0.5;
+
+  return (
+    <View onLayout={(event) => setWidth(event.nativeEvent.layout.width)}>
+      {width > 0 ? (
+        <ScrollView
+          horizontal
+          pagingEnabled
+          showsHorizontalScrollIndicator={false}
+          scrollEnabled={imageIds.length > 1}
+          onMomentumScrollEnd={(event) =>
+            setPage(Math.round(event.nativeEvent.contentOffset.x / width))
+          }
+        >
+          {imageIds.map((imageId) => {
+            const source = images.source(imageId, "full");
+            const ratio = ratios[imageId] ?? 3 / 4;
+            const height = Math.min(width / ratio, maxHeight);
+            return source ? (
+              <Image
+                key={imageId}
+                source={source}
+                style={[styles.image, { width, height }]}
+                contentFit="contain"
+                onLoad={(event) => {
+                  const { width: w, height: h } = event.source;
+                  if (w > 0 && h > 0 && ratios[imageId] !== w / h) {
+                    setRatios((current) => ({ ...current, [imageId]: w / h }));
+                  }
+                }}
+              />
+            ) : (
+              <View
+                key={imageId}
+                style={[styles.image, styles.imageFallback, { width, height }]}
+              />
+            );
+          })}
+        </ScrollView>
+      ) : null}
+      {imageIds.length > 1 ? (
+        <View style={styles.dots}>
+          {imageIds.map((imageId, index) => (
+            <View
+              key={imageId}
+              style={[styles.dot, index === page && styles.dotActive]}
+            />
+          ))}
+        </View>
+      ) : null}
+    </View>
+  );
+}
+
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <View style={styles.field}>
@@ -330,14 +503,52 @@ const styles = StyleSheet.create({
     paddingHorizontal: theme.spacing.md,
     gap: theme.spacing.md,
   },
-  photos: {
-    gap: theme.spacing.sm,
-  },
   image: {
-    width: 240,
-    aspectRatio: 3 / 4,
     borderRadius: theme.radii.lg,
     backgroundColor: theme.colors.background,
+  },
+  dots: {
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: theme.spacing.xxs + 2,
+    marginTop: theme.spacing.xs,
+  },
+  dot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: theme.colors.border,
+  },
+  dotActive: {
+    backgroundColor: theme.colors.accent,
+  },
+  suggestingRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing.xs,
+  },
+  pieceActions: {
+    flexDirection: "row",
+    gap: theme.spacing.md,
+    marginTop: theme.spacing.xxs,
+  },
+  link: {
+    fontSize: theme.typography.subheadline.fontSize,
+    lineHeight: theme.typography.subheadline.lineHeight,
+    color: theme.colors.accent,
+    fontWeight: theme.typography.headline.fontWeight,
+  },
+  helper: {
+    fontSize: theme.typography.footnote.fontSize,
+    lineHeight: theme.typography.footnote.lineHeight,
+    color: theme.colors.textMuted,
+  },
+  suggestedTag: {
+    fontFamily: theme.fonts.mono,
+    fontSize: theme.typography.caption2.fontSize,
+    lineHeight: theme.typography.caption2.lineHeight,
+    letterSpacing: theme.tracking.caption,
+    color: theme.colors.accent,
   },
   imageFallback: {
     borderWidth: StyleSheet.hairlineWidth,
@@ -396,6 +607,10 @@ const styles = StyleSheet.create({
     gap: theme.spacing.xs,
   },
   pieceChip: {
+    maxWidth: "100%",
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing.xxs + 2,
     borderWidth: StyleSheet.hairlineWidth,
     borderColor: theme.colors.border,
     borderRadius: theme.radii.pill,
@@ -407,7 +622,13 @@ const styles = StyleSheet.create({
     borderColor: theme.colors.accent,
     backgroundColor: theme.colors.accent,
   },
+  // Pre-selected by the AI but not yet confirmed: outlined, not filled.
+  pieceChipSuggested: {
+    borderColor: theme.colors.accent,
+    borderStyle: "dashed",
+  },
   pieceChipText: {
+    flexShrink: 1,
     fontSize: theme.typography.subheadline.fontSize,
     lineHeight: theme.typography.subheadline.lineHeight,
     color: theme.colors.text,

@@ -2,6 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
+import { formatDate } from "@/storage/dates";
 import { imageSourceForOutfit, type Outfit } from "@/storage/outfits";
 import { theme } from "@/theme/tokens";
 
@@ -10,16 +11,6 @@ interface OutfitCardProps {
   onPress: () => void;
 }
 
-function formatDate(value: string): string {
-  const date = new Date(`${value}T00:00:00`);
-  return Number.isNaN(date.getTime())
-    ? value
-    : date.toLocaleDateString(undefined, {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-      });
-}
 
 export function OutfitCard({ outfit, onPress }: OutfitCardProps) {
   const source = imageSourceForOutfit(outfit, "thumb");

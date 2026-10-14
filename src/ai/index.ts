@@ -210,6 +210,12 @@ export const ai = {
   scanItem: (image: string) => invoke<ScanResult>("scan-item", { image }),
   analyzeWardrobeGaps: () =>
     invoke<GapAnalysisResult>("analyze-wardrobe-gaps", {}),
+  /** Pro only; the function refuses free accounts with plan_required. */
+  matchOutfitPieces: (image: string) =>
+    invoke<{ matches: { piece_id: string; confidence: number }[] }>(
+      "match-outfit-pieces",
+      { image },
+    ),
   distillInspiration: (image: string) =>
     invoke<{ vibe: string }>("distill-inspiration", { image }),
 };
