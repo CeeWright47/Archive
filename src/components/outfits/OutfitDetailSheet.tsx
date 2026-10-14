@@ -14,6 +14,7 @@ import {
 } from "react-native";
 
 import { BottomSheet } from "@/components/BottomSheet";
+import { DateWornField } from "@/components/outfits/DateWornField";
 import { PiecePicker } from "@/components/outfits/PiecePicker";
 import { StarRating } from "@/components/StarRating";
 import { formatDate, normalizeDateString } from "@/storage/dates";
@@ -174,12 +175,9 @@ export function OutfitDetailSheet({
                 />
               </Field>
               <Field label="Date worn">
-                <TextInput
-                  style={styles.input}
-                  value={draft.dateWorn}
-                  onChangeText={(dateWorn) => setDraft({ ...draft, dateWorn })}
-                  placeholder="YYYY-MM-DD"
-                  placeholderTextColor={theme.colors.textMuted}
+                <DateWornField
+                  value={normalizeDateString(draft.dateWorn)}
+                  onChange={(dateWorn) => setDraft({ ...draft, dateWorn })}
                 />
               </Field>
               <Field label="Occasion">
