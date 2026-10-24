@@ -231,6 +231,7 @@ export default function WardrobeScreen() {
       current.map((p) => (p.id === updated.id ? updated : p)),
     );
     setNewPieceId(null);
+    setForceEditPieceId(null);
   }, []);
 
   const handleDeletePiece = useCallback(async (id: string) => {
