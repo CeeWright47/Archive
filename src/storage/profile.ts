@@ -21,14 +21,30 @@ export const BUILD_OPTIONS = [
 ] as const;
 export type Build = (typeof BUILD_OPTIONS)[number];
 
+export const GENDER_OPTIONS = ["Female", "Male", "Prefer not to say"] as const;
+export type Gender = (typeof GENDER_OPTIONS)[number];
+
+// Lowercase letters/digits/underscores, 3-20 chars, starting with a letter —
+// mirrored by the `user_profile_username_format` check constraint in
+// supabase/migrations/202610240001_add_username.sql. Keep these in sync.
+export const USERNAME_PATTERN = /^[a-z][a-z0-9_]{2,19}$/;
+
 export const LETTER_SIZES = ["XS", "S", "M", "L", "XL", "XXL"] as const;
 export type LetterSize = (typeof LETTER_SIZES)[number];
 
 export const SHOE_WIDTHS = ["D", "E", "EE"] as const;
 export type ShoeWidth = (typeof SHOE_WIDTHS)[number];
 
+// Retained only to read budgets saved before the switch to exact dollar
+// entry — new writes always store a plain number.
 export const BUDGET_TIERS = ["$", "$$", "$$$", "$$$$"] as const;
 export type BudgetTier = (typeof BUDGET_TIERS)[number];
+const LEGACY_BUDGET_TIER_AMOUNTS: Record<BudgetTier, number> = {
+  $: 25,
+  $$: 100,
+  $$$: 225,
+  $$$$: 400,
+};
 
 export const CLIMATE_ZONES = [
   "Hot / humid",
@@ -54,18 +70,24 @@ export interface Sizes {
     sleeve: number | null;
   };
   bottoms: { waist: number | null; inseam: number | null };
-  shoes: { size: number | null; width: ShoeWidth | null };
+  // `size` is the person's primary shoe size. When gender is "Female",
+  // it holds the US women's size and `sizeMens` holds the US men's
+  // equivalent alongside it; for everyone else only `size` is shown/used.
+  shoes: { size: number | null; sizeMens: number | null; width: ShoeWidth | null };
   outerwear: { letter: LetterSize | null };
+  dresses: { size: number | null };
 }
 
 export interface UserProfile {
   plan: Plan;
   name: string | null;
+  username: string | null;
   mobile: string | null;
   heightCm: number | null;
   weightKg: number | null;
   birthYear: number | null;
   build: Build | null;
+  gender: Gender | null;
   sizes: Sizes;
 }
 
@@ -88,7 +110,8 @@ export interface Preferences {
   colors: ColorPreferences;
   occasions: string[];
   stores: string[];
-  budget: Partial<Record<BudgetCategory, BudgetTier>>;
+  /** Typical spend per category, in whole dollars. */
+  budget: Partial<Record<BudgetCategory, number>>;
   units: Units;
   climate: {
     zone: ClimateZone | null;
@@ -127,18 +150,21 @@ export interface StyleAssessmentRecord {
 export const EMPTY_SIZES: Sizes = {
   tops: { letter: null, neck: null, sleeve: null },
   bottoms: { waist: null, inseam: null },
-  shoes: { size: null, width: null },
+  shoes: { size: null, sizeMens: null, width: null },
   outerwear: { letter: null },
+  dresses: { size: null },
 };
 
 export const EMPTY_PROFILE: UserProfile = {
   plan: "free",
   name: null,
+  username: null,
   mobile: null,
   heightCm: null,
   weightKg: null,
   birthYear: null,
   build: null,
+  gender: null,
   sizes: EMPTY_SIZES,
 };
 
@@ -200,6 +226,7 @@ function manyOf<T extends string>(value: unknown, options: readonly T[]): T[] {
 interface UserProfileRow {
   plan: string | null;
   name: string | null;
+  username: string | null;
   mobile: string | null;
   body_info: unknown;
   sizes: unknown;
@@ -212,14 +239,17 @@ function mapUserProfile(row: UserProfileRow): UserProfile {
   const bottoms = obj(sizes.bottoms);
   const shoes = obj(sizes.shoes);
   const outerwear = obj(sizes.outerwear);
+  const dresses = obj(sizes.dresses);
   return {
     plan: oneOf(row.plan, ["free", "pro", "lifetime"] as const) ?? "free",
     name: row.name,
+    username: row.username,
     mobile: row.mobile,
     heightCm: num(body.height_cm),
     weightKg: num(body.weight_kg),
     birthYear: num(body.birth_year),
     build: oneOf(body.build, BUILD_OPTIONS),
+    gender: oneOf(body.gender, GENDER_OPTIONS),
     sizes: {
       tops: {
         letter: oneOf(tops.letter, LETTER_SIZES),
@@ -227,8 +257,13 @@ function mapUserProfile(row: UserProfileRow): UserProfile {
         sleeve: num(tops.sleeve),
       },
       bottoms: { waist: num(bottoms.waist), inseam: num(bottoms.inseam) },
-      shoes: { size: num(shoes.size), width: oneOf(shoes.width, SHOE_WIDTHS) },
+      shoes: {
+        size: num(shoes.size),
+        sizeMens: num(shoes.size_mens),
+        width: oneOf(shoes.width, SHOE_WIDTHS),
+      },
       outerwear: { letter: oneOf(outerwear.letter, LETTER_SIZES) },
+      dresses: { size: num(dresses.size) },
     },
   };
 }
@@ -264,8 +299,14 @@ function mapPreferences(row: PreferencesRow): Preferences {
     stores: strArray(row.stores),
     budget: Object.fromEntries(
       BUDGET_CATEGORIES.flatMap((category) => {
-        const tier = oneOf(budget[category], BUDGET_TIERS);
-        return tier ? [[category, tier]] : [];
+        const raw = budget[category];
+        // Older rows stored a $/$$/$$$/$$$$ tier; map those to a
+        // representative dollar amount so existing users keep a sensible
+        // starting value after the switch to exact numeric entry.
+        const amount =
+          num(raw) ??
+          (oneOf(raw, BUDGET_TIERS) ? LEGACY_BUDGET_TIER_AMOUNTS[raw as BudgetTier] : null);
+        return amount !== null ? [[category, amount]] : [];
       }),
     ),
     units:
@@ -347,6 +388,13 @@ function mapStyleAssessment(
 
 // ---------- Access ----------
 
+export class UsernameTakenError extends Error {
+  constructor() {
+    super("That username is taken.");
+    this.name = "UsernameTakenError";
+  }
+}
+
 async function requireUserId(): Promise<string> {
   const {
     data: { user },
@@ -359,7 +407,7 @@ export const profileStore = {
   async getUserProfile(): Promise<UserProfile> {
     const { data, error } = await supabase
       .from("user_profile")
-      .select("plan, name, mobile, body_info, sizes")
+      .select("plan, name, username, mobile, body_info, sizes")
       .maybeSingle();
     if (error) throw error;
     return data ? mapUserProfile(data as UserProfileRow) : EMPTY_PROFILE;
@@ -371,17 +419,45 @@ export const profileStore = {
       user_id: userId,
       plan: profile.plan,
       name: profile.name,
+      username: profile.username,
       mobile: profile.mobile,
       body_info: {
         height_cm: profile.heightCm,
         weight_kg: profile.weightKg,
         birth_year: profile.birthYear,
         build: profile.build,
+        gender: profile.gender,
       },
-      sizes: profile.sizes,
+      sizes: {
+        ...profile.sizes,
+        shoes: {
+          size: profile.sizes.shoes.size,
+          size_mens: profile.sizes.shoes.sizeMens,
+          width: profile.sizes.shoes.width,
+        },
+      },
       updated_at: new Date().toISOString(),
     });
+    if (error) {
+      // Postgres unique_violation — lost a race with someone else claiming
+      // the same username between the availability check and this save.
+      if (error.code === "23505") throw new UsernameTakenError();
+      throw error;
+    }
+  },
+
+  // Backed by a SECURITY DEFINER function so the client can check this
+  // without RLS granting it read access to other users' profile rows. The
+  // signed-in user's own row is excluded server-side, so re-saving their
+  // current (or a just-saved) username never reports as taken.
+  async checkUsernameAvailable(username: string): Promise<boolean> {
+    const userId = await requireUserId();
+    const { data, error } = await supabase.rpc("is_username_available", {
+      check_username: username,
+      exclude_user_id: userId,
+    });
     if (error) throw error;
+    return data === true;
   },
 
   async getPreferences(): Promise<Preferences> {

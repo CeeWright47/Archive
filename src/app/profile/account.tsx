@@ -7,6 +7,7 @@ import {
     HelperText,
     ProfilePage,
     TextField,
+    UsernameField,
 } from "@/components/settings";
 import { useUserProfile } from "@/hooks/useProfileData";
 import { theme } from "@/theme/tokens";
@@ -31,6 +32,13 @@ export default function AccountScreen() {
             value={value.name ?? ""}
             onChangeText={(name) => profile.update({ name: name || null })}
             placeholder="Your name"
+          />
+          <FieldLabel>Username</FieldLabel>
+          <UsernameField
+            value={value.username ?? ""}
+            onChangeText={(username) =>
+              profile.update({ username: username || null })
+            }
           />
           <FieldLabel>Email</FieldLabel>
           <TextField

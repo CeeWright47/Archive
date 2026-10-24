@@ -1,19 +1,15 @@
+import { StyleSheet, View } from "react-native";
+
 import {
-    ChipGroup,
     ErrorText,
     FieldLabel,
     HelperText,
     ProfilePage,
+    SliderField,
 } from "@/components/settings";
 import { usePreferences } from "@/hooks/useProfileData";
-import { BUDGET_CATEGORIES, BUDGET_TIERS } from "@/storage/profile";
-
-const RANGES: Record<string, string> = {
-  $: "Under $50",
-  $$: "$50–150",
-  $$$: "$150–300",
-  $$$$: "$300+",
-};
+import { BUDGET_CATEGORIES, type BudgetCategory } from "@/storage/profile";
+import { theme } from "@/theme/tokens";
 
 export default function BudgetScreen() {
   const prefs = usePreferences();
@@ -27,27 +23,29 @@ export default function BudgetScreen() {
       {value && (
         <>
           <HelperText>
-            Typical spend by category. These ranges help keep suggestions
-            realistic.
+            Typical spend by category. Drag the slider or type an exact
+            amount — these keep suggestions realistic.
           </HelperText>
-          {BUDGET_CATEGORIES.map((category) => (
-            <FieldLabel
-              key={category}
-            >{`${category} · ${RANGES[value.budget[category] ?? "$"]}`}</FieldLabel>
-          ))}
-          {BUDGET_CATEGORIES.map((category) => (
-            <ChipGroup
-              key={category}
-              mode="single"
-              options={BUDGET_TIERS}
-              value={value.budget[category] ?? null}
-              onChange={(tier) =>
-                prefs.update((prev) => ({
-                  ...prev,
-                  budget: { ...prev.budget, [category]: tier ?? undefined },
-                }))
-              }
-            />
+          {BUDGET_CATEGORIES.map((category: BudgetCategory) => (
+            <View key={category} style={styles.field}>
+              <FieldLabel>{category}</FieldLabel>
+              <SliderField
+                value={value.budget[category] ?? null}
+                onCommit={(amount) =>
+                  prefs.update((prev) => ({
+                    ...prev,
+                    budget: {
+                      ...prev.budget,
+                      [category]: amount ?? undefined,
+                    },
+                  }))
+                }
+                min={0}
+                max={500}
+                step={5}
+                placeholder="0"
+              />
+            </View>
           ))}
           {prefs.error ? <ErrorText>{prefs.error}</ErrorText> : null}
         </>
@@ -55,3 +53,7 @@ export default function BudgetScreen() {
     </ProfilePage>
   );
 }
+
+const styles = StyleSheet.create({
+  field: { gap: theme.spacing.xs },
+});

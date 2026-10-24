@@ -9,9 +9,11 @@ export {
     type ProfileSaveAction
 } from "./ProfilePage";
 export { SavedIndicator } from "./SavedIndicator";
+export { SliderField } from "./Slider";
 export { SectionHeader } from "./SectionHeader";
 export { SettingsGroup } from "./SettingsGroup";
 export { SettingsRow } from "./SettingsRow";
 export { StoreChip, StoreLogo } from "./StoreChip";
 export { ErrorText, FieldLabel, HelperText } from "./Text";
+export { UsernameField } from "./UsernameField";
 

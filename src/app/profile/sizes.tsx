@@ -8,12 +8,13 @@ import {
     ProfilePage,
 } from "@/components/settings";
 import { useUserProfile } from "@/hooks/useProfileData";
-import { LETTER_SIZES, SHOE_WIDTHS } from "@/storage/profile";
+import { GENDER_OPTIONS, LETTER_SIZES, SHOE_WIDTHS } from "@/storage/profile";
 import { theme } from "@/theme/tokens";
 
 export default function SizesScreen() {
   const profile = useUserProfile();
   const p = profile.value;
+  const isFemale = p?.gender === "Female";
   return (
     <ProfilePage
       loading={profile.loading}
@@ -22,6 +23,13 @@ export default function SizesScreen() {
     >
       {p && (
         <>
+          <FieldLabel>Gender</FieldLabel>
+          <ChipGroup
+            mode="single"
+            options={GENDER_OPTIONS}
+            value={p.gender}
+            onChange={(gender) => profile.update({ gender })}
+          />
           <FieldLabel>Tops</FieldLabel>
           <ChipGroup
             mode="single"
@@ -81,16 +89,47 @@ export default function SizesScreen() {
               integer
             />
           </View>
+          {isFemale && (
+            <>
+              <FieldLabel>Dress</FieldLabel>
+              <NumericField
+                value={p.sizes.dresses.size}
+                onCommit={(size) =>
+                  profile.update({ sizes: { ...p.sizes, dresses: { size } } })
+                }
+                placeholder="6"
+                integer
+              />
+            </>
+          )}
           <FieldLabel>Shoes</FieldLabel>
-          <NumericField
-            value={p.sizes.shoes.size}
-            onCommit={(size) =>
-              profile.update({
-                sizes: { ...p.sizes, shoes: { ...p.sizes.shoes, size } },
-              })
-            }
-            placeholder="10.5"
-          />
+          <View style={styles.row}>
+            <NumericField
+              value={p.sizes.shoes.size}
+              onCommit={(size) =>
+                profile.update({
+                  sizes: { ...p.sizes, shoes: { ...p.sizes.shoes, size } },
+                })
+              }
+              unit={isFemale ? "women's" : undefined}
+              placeholder="10.5"
+            />
+            {isFemale && (
+              <NumericField
+                value={p.sizes.shoes.sizeMens}
+                onCommit={(sizeMens) =>
+                  profile.update({
+                    sizes: {
+                      ...p.sizes,
+                      shoes: { ...p.sizes.shoes, sizeMens },
+                    },
+                  })
+                }
+                unit="men's"
+                placeholder="8.5"
+              />
+            )}
+          </View>
           <ChipGroup
             mode="single"
             options={SHOE_WIDTHS}

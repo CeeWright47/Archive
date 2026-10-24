@@ -22,10 +22,12 @@ import {
     PrimaryButton,
     StoreChip,
     TextField,
+    UsernameField,
 } from "@/components/settings";
 import { UpgradeSheet } from "@/components/UpgradeSheet";
 import { BOTTOM_FITS, TOP_FITS } from "@/storage/fitVocabulary";
 import {
+    GENDER_OPTIONS,
     LETTER_SIZES,
     profileStore,
     type Preferences,
@@ -34,7 +36,7 @@ import {
 import { STORE_DEFAULTS, storeDomainFor } from "@/storage/stores";
 import { theme } from "@/theme/tokens";
 
-const STEP_COUNT = 6;
+const STEP_COUNT = 7;
 
 export function OnboardingFlow({
   initialProfile,
@@ -53,6 +55,7 @@ export function OnboardingFlow({
   const [saving, setSaving] = useState(false);
   const [cataloguing, setCataloguing] = useState(false);
   const [addedCount, setAddedCount] = useState(0);
+  const [usernameValid, setUsernameValid] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [upgradeOpen, setUpgradeOpen] = useState(false);
   const profileRef = useRef(profile);
@@ -98,7 +101,7 @@ export function OnboardingFlow({
     try {
       const created = await catalogPiecesFromLibrary();
       setAddedCount((current) => current + created.length);
-      if (created.length > 0) setStep(5);
+      if (created.length > 0) setStep(6);
     } catch (catalogError) {
       if (catalogError instanceof PieceLimitError) {
         setUpgradeOpen(true);
@@ -138,7 +141,7 @@ export function OnboardingFlow({
     });
   };
 
-  const next = () => setStep((current) => Math.min(current + 1, 5));
+  const next = () => setStep((current) => Math.min(current + 1, 6));
 
   return (
     <KeyboardAvoidingView
@@ -156,7 +159,7 @@ export function OnboardingFlow({
           >
             <Ionicons name="arrow-back" size={22} color={theme.colors.text} />
           </Pressable>
-          {step < 5 ? (
+          {step < 6 ? (
             <Pressable
               accessibilityRole="button"
               onPress={finish}
@@ -189,6 +192,15 @@ export function OnboardingFlow({
       >
         {step === 0 ? <WelcomeStep /> : null}
         {step === 1 ? (
+          <UsernameStep
+            value={profile.username ?? ""}
+            onChange={(username) =>
+              updateProfile({ ...profile, username: username || null })
+            }
+            onValidityChange={setUsernameValid}
+          />
+        ) : null}
+        {step === 2 ? (
           <StyleStep
             value={preferences.styleText ?? ""}
             onChange={(styleText) =>
@@ -199,7 +211,7 @@ export function OnboardingFlow({
             }
           />
         ) : null}
-        {step === 2 ? (
+        {step === 3 ? (
           <FitSizesStep
             profile={profile}
             preferences={preferences}
@@ -207,7 +219,7 @@ export function OnboardingFlow({
             updatePreferences={updatePreferences}
           />
         ) : null}
-        {step === 3 ? (
+        {step === 4 ? (
           <StoresStep
             selected={preferences.stores}
             draft={storeDraft}
@@ -216,8 +228,8 @@ export function OnboardingFlow({
             onAdd={addStore}
           />
         ) : null}
-        {step === 4 ? <PiecesStep addedCount={addedCount} /> : null}
-        {step === 5 ? <DoneStep /> : null}
+        {step === 5 ? <PiecesStep addedCount={addedCount} /> : null}
+        {step === 6 ? <DoneStep /> : null}
         {error ? <ErrorText>{error}</ErrorText> : null}
       </ScrollView>
 
@@ -227,7 +239,7 @@ export function OnboardingFlow({
           { paddingBottom: insets.bottom + theme.spacing.xs },
         ]}
       >
-        {step === 4 ? (
+        {step === 5 ? (
           <>
             <PrimaryButton
               label={cataloguing ? "Adding pieces..." : "Add first pieces"}
@@ -238,7 +250,7 @@ export function OnboardingFlow({
               <Text style={styles.later}>I’ll do this later</Text>
             </Pressable>
           </>
-        ) : step === 5 ? (
+        ) : step === 6 ? (
           <PrimaryButton
             label={saving ? "Finishing..." : "Go to Archive"}
             onPress={finish}
@@ -248,6 +260,7 @@ export function OnboardingFlow({
           <PrimaryButton
             label={step === 0 ? "Get started" : "Continue"}
             onPress={next}
+            disabled={step === 1 && !usernameValid}
           />
         )}
       </View>
@@ -279,6 +292,30 @@ function WelcomeStep() {
         A wardrobe that learns what you own, wear, and want next.
       </Text>
     </View>
+  );
+}
+
+function UsernameStep({
+  value,
+  onChange,
+  onValidityChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  onValidityChange: (valid: boolean) => void;
+}) {
+  return (
+    <>
+      <StepHeading
+        title="Pick a username"
+        body="This is how people will find you on Archive. You can change it later, or skip for now."
+      />
+      <UsernameField
+        value={value}
+        onChangeText={onChange}
+        onValidityChange={onValidityChange}
+      />
+    </>
   );
 }
 
@@ -315,96 +352,158 @@ function FitSizesStep({
   updateProfile: (profile: UserProfile) => void;
   updatePreferences: (preferences: Preferences) => void;
 }) {
+  const isFemale = profile.gender === "Female";
   return (
     <>
       <StepHeading
         title="Fit and sizes"
         body="A few useful details make recommendations feel like yours."
       />
-      <FieldLabel>Top fit</FieldLabel>
-      <ChipGroup
-        mode="multi"
-        options={TOP_FITS}
-        value={preferences.fit.tops}
-        onChange={(tops) =>
-          updatePreferences({
-            ...preferences,
-            fit: { ...preferences.fit, tops },
-          })
-        }
-      />
-      <FieldLabel>Bottom fit</FieldLabel>
-      <ChipGroup
-        mode="multi"
-        options={BOTTOM_FITS}
-        value={preferences.fit.bottoms}
-        onChange={(bottoms) =>
-          updatePreferences({
-            ...preferences,
-            fit: { ...preferences.fit, bottoms },
-          })
-        }
-      />
-      <FieldLabel>Top size</FieldLabel>
+      <FieldLabel>Gender</FieldLabel>
       <ChipGroup
         mode="single"
-        options={LETTER_SIZES}
-        value={profile.sizes.tops.letter}
-        onChange={(letter) =>
-          updateProfile({
-            ...profile,
-            sizes: {
-              ...profile.sizes,
-              tops: { ...profile.sizes.tops, letter },
-            },
-          })
-        }
+        options={GENDER_OPTIONS}
+        value={profile.gender}
+        onChange={(gender) => updateProfile({ ...profile, gender })}
       />
-      <FieldLabel>Bottom size</FieldLabel>
-      <View style={styles.fieldRow}>
-        <NumericField
-          value={profile.sizes.bottoms.waist}
-          onCommit={(waist) =>
-            updateProfile({
-              ...profile,
-              sizes: {
-                ...profile.sizes,
-                bottoms: { ...profile.sizes.bottoms, waist },
-              },
-            })
-          }
-          unit="waist"
-          integer
-        />
-        <NumericField
-          value={profile.sizes.bottoms.inseam}
-          onCommit={(inseam) =>
-            updateProfile({
-              ...profile,
-              sizes: {
-                ...profile.sizes,
-                bottoms: { ...profile.sizes.bottoms, inseam },
-              },
-            })
-          }
-          unit="inseam"
-          integer
-        />
-      </View>
-      <FieldLabel>Shoe size</FieldLabel>
-      <NumericField
-        value={profile.sizes.shoes.size}
-        onCommit={(size) =>
-          updateProfile({
-            ...profile,
-            sizes: {
-              ...profile.sizes,
-              shoes: { ...profile.sizes.shoes, size },
-            },
-          })
-        }
-        placeholder="10.5"
-      />
+      {profile.gender ? (
+        <>
+          <FieldLabel>Top fit</FieldLabel>
+          <ChipGroup
+            mode="multi"
+            options={TOP_FITS}
+            value={preferences.fit.tops}
+            onChange={(tops) =>
+              updatePreferences({
+                ...preferences,
+                fit: { ...preferences.fit, tops },
+              })
+            }
+          />
+          <FieldLabel>Bottom fit</FieldLabel>
+          <ChipGroup
+            mode="multi"
+            options={BOTTOM_FITS}
+            value={preferences.fit.bottoms}
+            onChange={(bottoms) =>
+              updatePreferences({
+                ...preferences,
+                fit: { ...preferences.fit, bottoms },
+              })
+            }
+          />
+          <FieldLabel>Top size</FieldLabel>
+          <ChipGroup
+            mode="single"
+            options={LETTER_SIZES}
+            value={profile.sizes.tops.letter}
+            onChange={(letter) =>
+              updateProfile({
+                ...profile,
+                sizes: {
+                  ...profile.sizes,
+                  tops: { ...profile.sizes.tops, letter },
+                },
+              })
+            }
+          />
+          <FieldLabel>Bottom size</FieldLabel>
+          <View style={styles.fieldRow}>
+            <NumericField
+              value={profile.sizes.bottoms.waist}
+              onCommit={(waist) =>
+                updateProfile({
+                  ...profile,
+                  sizes: {
+                    ...profile.sizes,
+                    bottoms: { ...profile.sizes.bottoms, waist },
+                  },
+                })
+              }
+              unit="waist"
+              integer
+            />
+            <NumericField
+              value={profile.sizes.bottoms.inseam}
+              onCommit={(inseam) =>
+                updateProfile({
+                  ...profile,
+                  sizes: {
+                    ...profile.sizes,
+                    bottoms: { ...profile.sizes.bottoms, inseam },
+                  },
+                })
+              }
+              unit="inseam"
+              integer
+            />
+          </View>
+          {isFemale ? (
+            <>
+              <FieldLabel>Dress size</FieldLabel>
+              <NumericField
+                value={profile.sizes.dresses.size}
+                onCommit={(size) =>
+                  updateProfile({
+                    ...profile,
+                    sizes: { ...profile.sizes, dresses: { size } },
+                  })
+                }
+                placeholder="6"
+                integer
+              />
+              <FieldLabel>Shoe size</FieldLabel>
+              <View style={styles.fieldRow}>
+                <NumericField
+                  value={profile.sizes.shoes.size}
+                  onCommit={(size) =>
+                    updateProfile({
+                      ...profile,
+                      sizes: {
+                        ...profile.sizes,
+                        shoes: { ...profile.sizes.shoes, size },
+                      },
+                    })
+                  }
+                  unit="women's"
+                  placeholder="8"
+                />
+                <NumericField
+                  value={profile.sizes.shoes.sizeMens}
+                  onCommit={(sizeMens) =>
+                    updateProfile({
+                      ...profile,
+                      sizes: {
+                        ...profile.sizes,
+                        shoes: { ...profile.sizes.shoes, sizeMens },
+                      },
+                    })
+                  }
+                  unit="men's"
+                  placeholder="6.5"
+                />
+              </View>
+            </>
+          ) : (
+            <>
+              <FieldLabel>Shoe size</FieldLabel>
+              <NumericField
+                value={profile.sizes.shoes.size}
+                onCommit={(size) =>
+                  updateProfile({
+                    ...profile,
+                    sizes: {
+                      ...profile.sizes,
+                      shoes: { ...profile.sizes.shoes, size },
+                    },
+                  })
+                }
+                placeholder="10.5"
+              />
+            </>
+          )}
+        </>
+      ) : null}
     </>
   );
 }

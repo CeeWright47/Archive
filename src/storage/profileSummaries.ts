@@ -12,7 +12,7 @@ function join(parts: (string | null | undefined)[]): string | null {
 }
 
 export function accountSummary(profile: UserProfile): string | undefined {
-  return profile.name ?? undefined;
+  return join([profile.name, profile.username ? `@${profile.username}` : null]) ?? undefined;
 }
 
 export function aboutSummary(
@@ -92,12 +92,13 @@ export function assessmentSummary(
 }
 
 export function budgetSummary(prefs: Preferences): string | undefined {
-  const tiers = Object.values(prefs.budget);
-  if (tiers.length === 0) return undefined;
-  const sorted = [...tiers].sort((a, b) => a.length - b.length);
-  const low = sorted[0];
-  const high = sorted[sorted.length - 1];
-  return low === high ? low : `${low}–${high}`;
+  const amounts = Object.values(prefs.budget).filter(
+    (v): v is number => typeof v === "number",
+  );
+  if (amounts.length === 0) return undefined;
+  const low = Math.min(...amounts);
+  const high = Math.max(...amounts);
+  return low === high ? `$${low}` : `$${low}–$${high}`;
 }
 
 export function unitsSummary(prefs: Preferences): string {
