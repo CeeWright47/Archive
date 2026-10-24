@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-import { ai, AssessmentLimitError } from "@/ai";
+import { ai, AssessmentLimitError, type AssessmentOutfitMeta } from "@/ai";
 import { prepareAiImage } from "@/ai/image";
 import { ArchiveLoadingScreen } from "@/components/ArchiveLoadingScreen";
 import { UpgradeSheet } from "@/components/UpgradeSheet";
@@ -19,7 +19,7 @@ import {
     useUserProfile,
 } from "@/hooks/useProfileData";
 import { images } from "@/storage/images";
-import { outfits } from "@/storage/outfits";
+import { outfits, outfitRatingsFrom } from "@/storage/outfits";
 import type { StyleAssessmentRecord } from "@/storage/profile";
 import { theme } from "@/theme/tokens";
 
@@ -50,7 +50,10 @@ export default function AssessmentScreen() {
     outfits
       .list()
       .then((stored) =>
-        ai.assessmentInputsHash(stored.map((outfit) => outfit.id)),
+        ai.assessmentInputsHash(
+          stored.map((outfit) => outfit.id),
+          outfitRatingsFrom(stored),
+        ),
       )
       .then((result) => setCurrentHash(result.inputs_hash))
       .catch(() => setCurrentHash(null));
@@ -69,13 +72,24 @@ export default function AssessmentScreen() {
         .sort((a, b) => b.added - a.added)
         .slice(0, 8);
       const outfitImages: string[] = [];
+      const outfitMeta: AssessmentOutfitMeta[] = [];
       for (const outfit of sample) {
-        const uri = outfit.imageIds[0] ? images.read(outfit.imageIds[0]) : null;
-        if (uri) outfitImages.push(await prepareAiImage(uri));
+        const uri = outfit.imageIds[0]
+          ? await images.localUri(outfit.imageIds[0])
+          : null;
+        if (!uri) continue;
+        outfitImages.push(await prepareAiImage(uri));
+        outfitMeta.push({
+          dateWorn: outfit.dateWorn,
+          occasion: outfit.occasion,
+          rating: outfit.rating,
+        });
       }
       const result = await ai.runStyleAssessment({
         outfitIds: storedOutfits.map((outfit) => outfit.id),
+        outfitRatings: outfitRatingsFrom(storedOutfits),
         outfitImages,
+        outfitMeta,
       });
       setGenerated({
         id: result.id,

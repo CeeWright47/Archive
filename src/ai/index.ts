@@ -2,6 +2,8 @@ import { supabase } from "@/lib/supabase";
 
 export interface CatalogResult {
   name: string;
+  /** Only when a label or logo is visible in the photo. */
+  brand?: string | null;
   category: "top" | "bottom" | "shoes" | "outerwear" | "accessory";
   color: string;
   material: string;
@@ -165,6 +167,12 @@ async function invoke<T>(
   return data;
 }
 
+export interface AssessmentOutfitMeta {
+  dateWorn: string;
+  occasion: string;
+  rating: number | null;
+}
+
 export const ai = {
   catalogGarment: async (image: string) => {
     try {
@@ -180,7 +188,10 @@ export const ai = {
     invoke<PairingResult>("suggest-pairings", { anchorPieceId }),
   runStyleAssessment: async (input: {
     outfitIds: string[];
+    outfitRatings: Record<string, number>;
     outfitImages: string[];
+    /** Parallel to outfitImages. */
+    outfitMeta: AssessmentOutfitMeta[];
   }) => {
     try {
       return await invoke<AssessmentResult>("style-assessment", input);
@@ -191,9 +202,13 @@ export const ai = {
       throw error;
     }
   },
-  assessmentInputsHash: (outfitIds: string[]) =>
+  assessmentInputsHash: (
+    outfitIds: string[],
+    outfitRatings: Record<string, number>,
+  ) =>
     invoke<{ inputs_hash: string }>("style-assessment", {
       outfitIds,
+      outfitRatings,
       checkOnly: true,
     }),
   generateFit: (occasion: string, anchorPieceId?: string, inspoId?: string) =>
@@ -209,6 +224,12 @@ export const ai = {
   scanItem: (image: string) => invoke<ScanResult>("scan-item", { image }),
   analyzeWardrobeGaps: () =>
     invoke<GapAnalysisResult>("analyze-wardrobe-gaps", {}),
+  /** Pro only; the function refuses free accounts with plan_required. */
+  matchOutfitPieces: (image: string) =>
+    invoke<{ matches: { piece_id: string; confidence: number }[] }>(
+      "match-outfit-pieces",
+      { image },
+    ),
   distillInspiration: (image: string) =>
     invoke<{ vibe: string }>("distill-inspiration", { image }),
 };

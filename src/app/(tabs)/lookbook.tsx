@@ -1,9 +1,8 @@
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
-import { useRouter, type Href } from "expo-router";
-import { useCallback, useEffect, useState } from "react";
+import { useNavigation, useRouter, type Href } from "expo-router";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
-    ActivityIndicator,
     Alert,
     FlatList,
     Pressable,
@@ -22,10 +21,19 @@ import { InspoDetailSheet } from "@/components/lookbook/InspoDetailSheet";
 import { OutfitCard } from "@/components/outfits/OutfitCard";
 import { OutfitDetailSheet } from "@/components/outfits/OutfitDetailSheet";
 import { PhotoSourceSheet } from "@/components/PhotoSourceSheet";
+import { SkeletonGrid } from "@/components/SkeletonGrid";
+import { SortSheet } from "@/components/SortSheet";
 import { pickImage, type PickedImage } from "@/media/pickImage";
+import { todayString } from "@/storage/dates";
 import { fits, type Fit } from "@/storage/fits";
 import { images } from "@/storage/images";
-import { imageUriForInspo, inspo, type InspoImage } from "@/storage/inspo";
+import { imageSourceForInspo, inspo, type InspoImage } from "@/storage/inspo";
+import {
+    LOOKBOOK_SORT_OPTIONS,
+    lookbookSort,
+    sortLookbook,
+    type LookbookSort,
+} from "@/storage/lookbookSort";
 import {
     generateOutfitId,
     generateOutfitImageId,
@@ -33,17 +41,23 @@ import {
     type Outfit,
 } from "@/storage/outfits";
 import { pieces, type Piece } from "@/storage/pieces";
+import { photoStore } from "@/storage/photoStore";
+import { profileStore, type Plan } from "@/storage/profile";
 import { theme } from "@/theme/tokens";
 
 type LookbookTab = "inspiration" | "myStyle";
 
-function today(): string {
-  return new Date().toISOString().slice(0, 10);
-}
-
 export default function LookbookScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
+  const inspoListRef = useRef<FlatList<InspoImage>>(null);
+  const myStyleListRef = useRef<FlatList<Outfit>>(null);
   const [activeTab, setActiveTab] = useState<LookbookTab>("inspiration");
+  const [sorts, setSorts] = useState<Record<LookbookTab, LookbookSort>>({
+    inspiration: "newest",
+    myStyle: "newest",
+  });
+  const [sortOpen, setSortOpen] = useState(false);
   const [dockHeight, setDockHeight] = useState(0);
 
   const [allInspo, setAllInspo] = useState<InspoImage[]>([]);
@@ -63,6 +77,8 @@ export default function LookbookScreen() {
   const [newOutfitId, setNewOutfitId] = useState<string | null>(null);
   const [addingOutfit, setAddingOutfit] = useState(false);
   const [choosingSource, setChoosingSource] = useState(false);
+  // Until the plan loads, treat the account as free: no AI suggestions.
+  const [plan, setPlan] = useState<Plan>("free");
 
   async function load() {
     try {
@@ -82,7 +98,35 @@ export default function LookbookScreen() {
 
   useEffect(() => {
     load().finally(() => setLoading(false));
+    profileStore
+      .getUserProfile()
+      .then((profile) => setPlan(profile.plan))
+      .catch(() => {});
+    Promise.all([
+      lookbookSort.get("inspiration"),
+      lookbookSort.get("myStyle"),
+    ]).then(([inspiration, myStyle]) => setSorts({ inspiration, myStyle }));
   }, []);
+
+  const handleSortChange = useCallback(
+    (next: LookbookSort) => {
+      setSorts((current) => ({ ...current, [activeTab]: next }));
+      lookbookSort.set(activeTab, next).catch(() => {});
+    },
+    [activeTab],
+  );
+
+  // Re-tapping the Lookbook tab while already on it returns to the
+  // Inspiration sub-tab and scrolls both lists back to the top.
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("tabPress" as never, () => {
+      if (!navigation.isFocused()) return;
+      setActiveTab("inspiration");
+      inspoListRef.current?.scrollToOffset({ offset: 0, animated: true });
+      myStyleListRef.current?.scrollToOffset({ offset: 0, animated: true });
+    });
+    return unsubscribe;
+  }, [navigation]);
 
   async function handleRefresh() {
     setRefreshing(true);
@@ -157,6 +201,14 @@ export default function LookbookScreen() {
     }
   }
 
+  const suggestOutfitPieces = useCallback(async (outfit: Outfit) => {
+    const [coverImageId] = outfit.imageIds;
+    const uri = coverImageId ? await images.localUri(coverImageId) : null;
+    if (!uri) return [];
+    const result = await ai.matchOutfitPieces(await prepareAiImage(uri));
+    return result.matches.map((match) => match.piece_id);
+  }, []);
+
   const savePickedOutfitImages = useCallback(async (picked: PickedImage[]) => {
     if (picked.length === 0) return;
     setAddingOutfit(true);
@@ -165,7 +217,7 @@ export default function LookbookScreen() {
       const imageIds: string[] = [];
       for (const asset of selected) {
         const imageId = generateOutfitImageId();
-        await images.saveFromUri(imageId, asset.uri);
+        await photoStore.upload("outfits", imageId, asset.uri);
         imageIds.push(imageId);
       }
 
@@ -174,7 +226,7 @@ export default function LookbookScreen() {
         userId: null,
         sourceType: "self-photo",
         imageIds,
-        dateWorn: today(),
+        dateWorn: todayString(),
         pieceIds: [],
         profileTag: null,
         occasion: "",
@@ -235,8 +287,11 @@ export default function LookbookScreen() {
 
   if (loading) {
     return (
-      <View style={styles.center}>
-        <ActivityIndicator color={theme.colors.accent} />
+      <View style={styles.container}>
+        <SkeletonGrid
+          textLines={activeTab === "inspiration" ? 0 : 2}
+          style={styles.skeleton}
+        />
       </View>
     );
   }
@@ -251,7 +306,8 @@ export default function LookbookScreen() {
 
   if (generatingFitFor) return <ArchiveLoadingScreen showTip={false} />;
 
-  const sortedOutfits = [...allOutfits].sort((a, b) => b.added - a.added);
+  const sortedInspo = sortLookbook(allInspo, sorts.inspiration);
+  const sortedOutfits = sortLookbook(allOutfits, sorts.myStyle);
   const selectedOutfit =
     allOutfits.find((outfit) => outfit.id === selectedOutfitId) ?? null;
   const expandedInspo =
@@ -272,12 +328,34 @@ export default function LookbookScreen() {
           active={activeTab === "myStyle"}
           onPress={() => setActiveTab("myStyle")}
         />
+        <Pressable
+          accessibilityRole="button"
+          accessibilityLabel="Sort"
+          hitSlop={theme.spacing.xs}
+          onPress={() => setSortOpen(true)}
+          style={styles.sortButton}
+        >
+          <Ionicons
+            name="swap-vertical"
+            size={theme.spacing.md + 2}
+            color={theme.colors.text}
+          />
+        </Pressable>
       </View>
+
+      <SortSheet
+        visible={sortOpen}
+        options={LOOKBOOK_SORT_OPTIONS}
+        value={sorts[activeTab]}
+        onSelect={handleSortChange}
+        onClose={() => setSortOpen(false)}
+      />
 
       {activeTab === "inspiration" ? (
         <>
           <FlatList
-            data={allInspo}
+            ref={inspoListRef}
+            data={sortedInspo}
             keyExtractor={(entry) => entry.id}
             numColumns={2}
             columnWrapperStyle={styles.column}
@@ -332,6 +410,7 @@ export default function LookbookScreen() {
             A photographic record of what you’ve actually worn.
           </Text>
           <FlatList
+            ref={myStyleListRef}
             data={sortedOutfits}
             keyExtractor={(outfit) => outfit.id}
             numColumns={2}
@@ -390,6 +469,7 @@ export default function LookbookScreen() {
             }}
             onSave={handleSaveOutfit}
             onDelete={handleDeleteOutfit}
+            onSuggestPieces={plan === "free" ? undefined : suggestOutfitPieces}
           />
         </>
       )}
@@ -429,7 +509,7 @@ function InspoCard({
   onPress: () => void;
   onActionsPress: () => void;
 }) {
-  const uri = imageUriForInspo(entry);
+  const source = imageSourceForInspo(entry, "thumb");
   return (
     <Pressable
       accessibilityRole="button"
@@ -438,9 +518,9 @@ function InspoCard({
       style={styles.inspoCard}
     >
       <View style={styles.inspoImageWrapper}>
-        {uri ? (
+        {source ? (
           <Image
-            source={{ uri }}
+            source={source}
             style={styles.inspoImage}
             contentFit="cover"
           />
@@ -482,6 +562,17 @@ const styles = StyleSheet.create({
     paddingTop: theme.spacing.sm,
     paddingBottom: theme.spacing.xs,
   },
+  // Same look as the Wardrobe sort button, sized to sit beside the tab pills.
+  sortButton: {
+    width: 36,
+    height: 36,
+    borderRadius: theme.radii.pill,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: theme.colors.backgroundElevated,
+    borderWidth: StyleSheet.hairlineWidth,
+    borderColor: theme.colors.border,
+  },
   tabButton: {
     flex: 1,
     alignItems: "center",
@@ -515,6 +606,9 @@ const styles = StyleSheet.create({
     padding: theme.spacing.md,
     gap: theme.spacing.md,
     flexGrow: 1,
+  },
+  skeleton: {
+    paddingTop: theme.spacing.md,
   },
   column: {
     gap: theme.spacing.md,

@@ -1,5 +1,5 @@
-import { useRouter, type Href } from "expo-router";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useNavigation, useRouter, type Href } from "expo-router";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
     Alert,
     StyleSheet,
@@ -7,6 +7,7 @@ import {
     View,
     type LayoutChangeEvent,
 } from "react-native";
+import type { FlatList } from "react-native";
 import Animated, {
     useAnimatedScrollHandler,
     useSharedValue,
@@ -17,16 +18,19 @@ import { ai, PieceLimitError } from "@/ai";
 import {
     FREE_PIECE_LIMIT,
     FREE_PIECE_WARNING_AT,
-    catalogPiecesFromLibrary,
+    catalogPieces,
 } from "@/catalog/catalogPieces";
 import { ArchiveLoadingScreen } from "@/components/ArchiveLoadingScreen";
 import { BottomDock } from "@/components/BottomDock";
+import { PhotoSourceSheet } from "@/components/PhotoSourceSheet";
+import { SkeletonGrid } from "@/components/SkeletonGrid";
+import { SortSheet } from "@/components/SortSheet";
 import { UpgradeSheet } from "@/components/UpgradeSheet";
 import { ItemActionSheet } from "@/components/wardrobe/ItemActionSheet";
 import { PieceCard } from "@/components/wardrobe/PieceCard";
 import { PieceDetailSheet } from "@/components/wardrobe/PieceDetailSheet";
-import { SortSheet } from "@/components/wardrobe/SortSheet";
 import { WardrobeHeader } from "@/components/wardrobe/WardrobeHeader";
+import { pickImage } from "@/media/pickImage";
 import { fits, type Fit } from "@/storage/fits";
 import {
     ALL_PIECE_FITS,
@@ -34,11 +38,17 @@ import {
     type PieceFit,
 } from "@/storage/fitVocabulary";
 import { outfits } from "@/storage/outfits";
-import { pieces, type Piece, type PieceCategory } from "@/storage/pieces";
+import {
+    brandsFrom,
+    pieces,
+    type Piece,
+    type PieceCategory,
+} from "@/storage/pieces";
 import { profileStore, type Plan } from "@/storage/profile";
 import type { Subcategory } from "@/storage/subcategories";
 import {
     MIN_OUTFITS_FOR_WORN_SORT,
+    SORT_OPTIONS,
     WORN_SORTS,
     sortPieces,
     wardrobeSort,
@@ -65,6 +75,7 @@ function matchesQuery(piece: Piece, query: string): boolean {
   if (!query) return true;
   const haystack = [
     piece.name,
+    piece.brand ?? "",
     piece.color,
     piece.material,
     piece.subcategory ?? "",
@@ -80,7 +91,11 @@ function matchesQuery(piece: Piece, query: string): boolean {
 
 export default function WardrobeScreen() {
   const router = useRouter();
+  const navigation = useNavigation();
+  const listRef = useRef<FlatList<Piece>>(null);
   const [allPieces, setAllPieces] = useState<Piece[]>([]);
+  // Until the first fetch resolves, show a skeleton rather than "No pieces yet".
+  const [piecesLoaded, setPiecesLoaded] = useState(false);
   const [selectedCategory, setSelectedCategory] =
     useState<PieceCategory | null>(null);
   const [selectedSubcategory, setSelectedSubcategory] =
@@ -90,12 +105,10 @@ export default function WardrobeScreen() {
   const [fitFilter, setFitFilter] = useState<PieceFit | null>(null);
   const [sortOpen, setSortOpen] = useState(false);
   const [outfitPieceIds, setOutfitPieceIds] = useState<string[][]>([]);
-  const [selectedPieceId, setSelectedPieceId] = useState<string | null>(null);
-  const [newPieceId, setNewPieceId] = useState<string | null>(null);
-  const [forceEditPieceId, setForceEditPieceId] = useState<string | null>(
-    null,
-  );
+  const [editingPieceId, setEditingPieceId] = useState<string | null>(null);
   const [actionsPieceId, setActionsPieceId] = useState<string | null>(null);
+  const [replacingPhoto, setReplacingPhoto] = useState(false);
+  const [choosingSource, setChoosingSource] = useState(false);
   const [buildingFitFor, setBuildingFitFor] = useState<Piece | null>(null);
   const [adding, setAdding] = useState(false);
   const [plan, setPlan] = useState<Plan>("free");
@@ -113,9 +126,20 @@ export default function WardrobeScreen() {
   const headerHeightShared = useSharedValue(0);
   const lastScrollY = useSharedValue(0);
 
+  // A chip toggle (category/subcategory) can only happen while the header is
+  // at least partly visible, and it can change the header's own height (the
+  // subcategory row appearing/disappearing). Without this, headerTranslateY
+  // keeps whatever pixel offset it had under the OLD height, so the newly
+  // resized header no longer lines up with that offset — on the next scroll
+  // it can settle mid-way, leaving it overlapping the grid instead of fully
+  // shown or fully hidden. Snapping back to fully shown whenever the height
+  // changes keeps the two in sync; it's a no-op when already fully shown.
   useEffect(() => {
     headerHeightShared.value = headerHeight;
-  }, [headerHeight, headerHeightShared]);
+    headerTranslateY.value = withTiming(0, {
+      duration: HEADER_SNAP_DURATION_MS,
+    });
+  }, [headerHeight, headerHeightShared, headerTranslateY]);
 
   const snapHeader = () => {
     "worklet";
@@ -161,7 +185,10 @@ export default function WardrobeScreen() {
   });
 
   useEffect(() => {
-    pieces.list().then(setAllPieces);
+    pieces
+      .list()
+      .then(setAllPieces)
+      .finally(() => setPiecesLoaded(true));
     profileStore.getUserProfile().then((profile) => setPlan(profile.plan));
     wardrobeSort.get().then(setSort);
     outfits
@@ -169,7 +196,31 @@ export default function WardrobeScreen() {
       .then((list) => setOutfitPieceIds(list.map((o) => o.pieceIds)));
   }, []);
 
+  // Re-tapping the Wardrobe tab while already on it clears the search/filter
+  // state and scrolls back to the top, rather than leaving the screen as-is.
+  useEffect(() => {
+    const unsubscribe = navigation.addListener("tabPress" as never, () => {
+      if (!navigation.isFocused()) return;
+      setQuery("");
+      setSelectedCategory(null);
+      setSelectedSubcategory(null);
+      setFitFilter(null);
+      headerTranslateY.value = withTiming(0, {
+        duration: HEADER_SNAP_DURATION_MS,
+      });
+      listRef.current?.scrollToOffset({ offset: 0, animated: true });
+    });
+    return unsubscribe;
+  }, [navigation, headerTranslateY]);
+
   const showWornSorts = outfitPieceIds.length >= MIN_OUTFITS_FOR_WORN_SORT;
+  const sortOptions = useMemo(
+    () =>
+      SORT_OPTIONS.filter(
+        (option) => showWornSorts || !WORN_SORTS.includes(option.value),
+      ),
+    [showWornSorts],
+  );
 
   useEffect(() => {
     if (!showWornSorts && WORN_SORTS.includes(sort)) setSort("newest");
@@ -193,23 +244,33 @@ export default function WardrobeScreen() {
     if (fitFilter && !fitOptions.includes(fitFilter)) setFitFilter(null);
   }, [fitOptions, fitFilter]);
 
+  // A chip toggle changes the result set (and can change the header's
+  // height), so reset scroll alongside the header snap in the effect above.
+  const scrollToTop = useCallback(() => {
+    listRef.current?.scrollToOffset({ offset: 0, animated: false });
+  }, []);
+
   const handleHeaderLayout = useCallback((event: LayoutChangeEvent) => {
     setHeaderHeight(Math.ceil(event.nativeEvent.layout.height));
   }, []);
 
-  const handleAddPieces = useCallback(async () => {
+  const handleAddPieces = useCallback(() => {
     if (plan === "free" && allPieces.length >= FREE_PIECE_LIMIT) {
       setUpgradeOpen(true);
       return;
     }
+    setChoosingSource(true);
+  }, [allPieces.length, plan]);
+
+  const handlePickSource = useCallback(async (source: "camera" | "library") => {
+    setChoosingSource(false);
     setAdding(true);
     try {
-      const created = await catalogPiecesFromLibrary((piece) =>
+      const created = await catalogPieces(source, (piece) =>
         setAllPieces((current) => [...current, piece]),
       );
       if (created[0]) {
-        setNewPieceId(created[0].id);
-        setSelectedPieceId(created[0].id);
+        setEditingPieceId(created[0].id);
       }
     } catch (error) {
       if (error instanceof PieceLimitError) {
@@ -223,23 +284,19 @@ export default function WardrobeScreen() {
     } finally {
       setAdding(false);
     }
-  }, [allPieces.length, plan]);
+  }, []);
 
   const handleSavePiece = useCallback(async (updated: Piece) => {
     await pieces.save(updated);
     setAllPieces((current) =>
       current.map((p) => (p.id === updated.id ? updated : p)),
     );
-    setNewPieceId(null);
-    setForceEditPieceId(null);
   }, []);
 
   const handleDeletePiece = useCallback(async (id: string) => {
     await pieces.remove(id);
     setAllPieces((current) => current.filter((p) => p.id !== id));
-    setSelectedPieceId(null);
-    setNewPieceId(null);
-    setForceEditPieceId(null);
+    setEditingPieceId(null);
   }, []);
 
   const confirmRemoveFromActions = useCallback(
@@ -260,9 +317,26 @@ export default function WardrobeScreen() {
     [handleDeletePiece],
   );
 
+  const handleReplacePhoto = useCallback(async (piece: Piece) => {
+    try {
+      const picked = await pickImage.fromLibrary();
+      if (!picked) return;
+      setReplacingPhoto(true);
+      await pieces.replacePhoto(piece.id, picked.uri);
+      // The photo changed but the piece record didn't; re-render the grid.
+      setAllPieces((current) => [...current]);
+    } catch (error) {
+      Alert.alert(
+        "Couldn’t replace photo",
+        error instanceof Error ? error.message : "Please try again.",
+      );
+    } finally {
+      setReplacingPhoto(false);
+    }
+  }, []);
+
   const handleEditFromActions = useCallback((piece: Piece) => {
-    setForceEditPieceId(piece.id);
-    setSelectedPieceId(piece.id);
+    setEditingPieceId(piece.id);
   }, []);
 
   const handleShowPairings = useCallback(
@@ -357,12 +431,15 @@ export default function WardrobeScreen() {
     [inCategory],
   );
 
-  const selectedPiece =
-    allPieces.find((piece) => piece.id === selectedPieceId) ?? null;
+  const brandOptions = useMemo(() => brandsFrom(allPieces), [allPieces]);
+  const editingPiece =
+    allPieces.find((piece) => piece.id === editingPieceId) ?? null;
   const actionsPiece =
     allPieces.find((piece) => piece.id === actionsPieceId) ?? null;
 
-  if (buildingFitFor) return <ArchiveLoadingScreen showTip={false} />;
+  if (buildingFitFor || replacingPhoto) {
+    return <ArchiveLoadingScreen showTip={false} />;
+  }
 
   return (
     <View style={styles.container}>
@@ -370,9 +447,15 @@ export default function WardrobeScreen() {
         query={query}
         onQueryChange={setQuery}
         category={selectedCategory}
-        onCategoryChange={setSelectedCategory}
+        onCategoryChange={(next) => {
+          setSelectedCategory(next);
+          scrollToTop();
+        }}
         subcategory={selectedSubcategory}
-        onSubcategoryChange={setSelectedSubcategory}
+        onSubcategoryChange={(next) => {
+          setSelectedSubcategory(next);
+          scrollToTop();
+        }}
         categoryCounts={categoryCounts}
         subcategoryCounts={subcategoryCounts}
         onSortPress={() => setSortOpen(true)}
@@ -387,13 +470,18 @@ export default function WardrobeScreen() {
       />
 
       <Animated.FlatList
+        ref={listRef}
         data={filteredPieces}
         keyExtractor={(piece) => piece.id}
         numColumns={2}
         columnWrapperStyle={styles.column}
         contentContainerStyle={[
           styles.grid,
-          { paddingBottom: dockHeight },
+          // The header overlays the grid, so the first row starts below it.
+          {
+            paddingTop: headerHeight + theme.spacing.sm,
+            paddingBottom: dockHeight,
+          },
         ]}
         scrollEventThrottle={16}
         onScroll={scrollHandler}
@@ -402,21 +490,25 @@ export default function WardrobeScreen() {
           <PieceCard
             piece={item}
             showSubcategory={selectedCategory !== null}
-            onPress={() => setSelectedPieceId(item.id)}
+            onPress={() => setActionsPieceId(item.id)}
             onActionsPress={() => setActionsPieceId(item.id)}
           />
         )}
         ListEmptyComponent={
-          <View style={styles.empty}>
-            <Text style={styles.emptyHeading}>
-              {allPieces.length === 0 ? "No pieces yet" : "Nothing matches"}
-            </Text>
-            <Text style={styles.emptyBody}>
-              {allPieces.length === 0
-                ? "Add pieces from photos to start building your wardrobe."
-                : "Try a different search or filter."}
-            </Text>
-          </View>
+          !piecesLoaded ? (
+            <SkeletonGrid style={styles.skeleton} />
+          ) : (
+            <View style={styles.empty}>
+              <Text style={styles.emptyHeading}>
+                {allPieces.length === 0 ? "No pieces yet" : "Nothing matches"}
+              </Text>
+              <Text style={styles.emptyBody}>
+                {allPieces.length === 0
+                  ? "Add pieces from photos to start building your wardrobe."
+                  : "Try a different search or filter."}
+              </Text>
+            </View>
+          )
         }
       />
 
@@ -431,8 +523,8 @@ export default function WardrobeScreen() {
 
       <SortSheet
         visible={sortOpen}
+        options={sortOptions}
         value={sort}
-        showWornOptions={showWornSorts}
         onSelect={handleSortChange}
         fitOptions={fitOptions}
         fitValue={fitFilter}
@@ -441,15 +533,9 @@ export default function WardrobeScreen() {
       />
 
       <PieceDetailSheet
-        piece={selectedPiece}
-        startInEditMode={
-          selectedPieceId === newPieceId || selectedPieceId === forceEditPieceId
-        }
-        onClose={() => {
-          setSelectedPieceId(null);
-          setNewPieceId(null);
-          setForceEditPieceId(null);
-        }}
+        piece={editingPiece}
+        brandOptions={brandOptions}
+        onClose={() => setEditingPieceId(null)}
         onSave={handleSavePiece}
         onDelete={handleDeletePiece}
       />
@@ -468,10 +554,21 @@ export default function WardrobeScreen() {
           setActionsPieceId(null);
           handleEditFromActions(piece);
         }}
+        onReplacePhoto={(piece) => {
+          setActionsPieceId(null);
+          handleReplacePhoto(piece);
+        }}
         onRemove={(piece) => {
           setActionsPieceId(null);
           confirmRemoveFromActions(piece);
         }}
+      />
+      <PhotoSourceSheet
+        visible={choosingSource}
+        title="Add pieces"
+        onClose={() => setChoosingSource(false)}
+        onPickCamera={() => handlePickSource("camera")}
+        onPickLibrary={() => handlePickSource("library")}
       />
       <UpgradeSheet
         visible={upgradeOpen}
@@ -488,12 +585,16 @@ const styles = StyleSheet.create({
   },
   grid: {
     paddingHorizontal: theme.spacing.md,
-    paddingTop: theme.spacing.sm,
     gap: theme.spacing.md,
     flexGrow: 1,
   },
   column: {
     gap: theme.spacing.md,
+  },
+  // The list's content container already provides the grid's padding.
+  skeleton: {
+    paddingHorizontal: 0,
+    paddingTop: 0,
   },
   empty: {
     flex: 1,

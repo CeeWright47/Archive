@@ -12,7 +12,7 @@ import {
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { PieceLimitError } from "@/ai";
-import { catalogPiecesFromLibrary } from "@/catalog/catalogPieces";
+import { catalogPieces } from "@/catalog/catalogPieces";
 import {
     ChipGroup,
     ErrorText,
@@ -99,7 +99,7 @@ export function OnboardingFlow({
     setCataloguing(true);
     setError(null);
     try {
-      const created = await catalogPiecesFromLibrary();
+      const created = await catalogPieces("library");
       setAddedCount((current) => current + created.length);
       if (created.length > 0) setStep(6);
     } catch (catalogError) {

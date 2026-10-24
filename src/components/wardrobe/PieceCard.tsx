@@ -2,7 +2,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 
-import { imageUriFor, type Piece } from "@/storage/pieces";
+import { imageSourceFor, type Piece } from "@/storage/pieces";
 import { theme } from "@/theme/tokens";
 
 interface PieceCardProps {
@@ -19,7 +19,7 @@ export function PieceCard({
   onActionsPress,
   showSubcategory = false,
 }: PieceCardProps) {
-  const uri = imageUriFor(piece);
+  const source = imageSourceFor(piece, "thumb");
   const detailLine = [piece.color, piece.material].filter(Boolean).join(" · ");
   const label = showSubcategory
     ? (piece.subcategory ?? piece.category)
@@ -33,8 +33,8 @@ export function PieceCard({
       style={styles.card}
     >
       <View style={styles.imageWrapper}>
-        {uri ? (
-          <Image source={{ uri }} style={styles.image} contentFit="cover" />
+        {source ? (
+          <Image source={source} style={styles.image} contentFit="cover" />
         ) : (
           <View style={[styles.image, styles.imageFallback]} />
         )}

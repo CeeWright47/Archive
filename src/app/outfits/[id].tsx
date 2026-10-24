@@ -14,7 +14,7 @@ import {
 
 import { StarRating } from "@/components/StarRating";
 import { fits, type Fit } from "@/storage/fits";
-import { imageUriFor, pieces, type Piece } from "@/storage/pieces";
+import { imageSourceFor, pieces, type Piece } from "@/storage/pieces";
 import { theme } from "@/theme/tokens";
 
 export default function OutfitDetailScreen() {
@@ -136,12 +136,12 @@ export default function OutfitDetailScreen() {
         contentContainerStyle={styles.pieceCarousel}
       >
         {linkedPieces.map((piece) => {
-          const uri = imageUriFor(piece);
+          const source = imageSourceFor(piece, "thumb");
           return (
             <View key={piece.id} style={styles.pieceThumbWrapper}>
-              {uri ? (
+              {source ? (
                 <Image
-                  source={{ uri }}
+                  source={source}
                   style={styles.pieceThumb}
                   contentFit="cover"
                 />

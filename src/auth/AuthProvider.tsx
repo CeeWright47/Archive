@@ -1,6 +1,7 @@
 import type { Session } from '@supabase/supabase-js';
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 
+import { ALREADY_REGISTERED_MESSAGE, authErrorMessage } from '@/auth/authErrors';
 import { supabase } from '@/lib/supabase';
 
 type AuthContextValue = {
@@ -37,12 +38,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       session,
       initializing,
       signUpWithEmail: async (email, password) => {
-        const { error } = await supabase.auth.signUp({ email, password });
-        return { error: error?.message ?? null };
+        const { data, error } = await supabase.auth.signUp({ email, password });
+        if (error) return { error: authErrorMessage(error) };
+        // With email confirmation on, Supabase doesn't error for an existing
+        // address; it returns a user with no identities instead.
+        if (data.user && data.user.identities?.length === 0) {
+          return { error: ALREADY_REGISTERED_MESSAGE };
+        }
+        return { error: null };
       },
       signInWithEmail: async (email, password) => {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
-        return { error: error?.message ?? null };
+        return { error: error ? authErrorMessage(error) : null };
       },
       signOut: async () => {
         await supabase.auth.signOut();

@@ -1,12 +1,21 @@
 import { Directory, File, Paths } from "expo-file-system";
+import type { ImageSource } from "expo-image";
 import { Platform } from "react-native";
 
 // Images never go through key-value storage — they live here as files, referenced by URI.
 // expo-file-system has no web implementation, so on web we keep data/remote URIs in memory.
 const isWeb = Platform.OS === "web";
 const webCache = new Map<string, string>();
-// Images that already live at a URL (Supabase Storage) are referenced directly on every platform.
-const remoteUris = new Map<string, string>();
+// Images that live in Supabase Storage, by local id. URLs are signed and change
+// between launches, so display caches by `cacheKey` (the storage path) instead.
+interface RemoteImage {
+  full: string;
+  thumb: string;
+  cacheKey: string;
+}
+const remoteImages = new Map<string, RemoteImage>();
+
+export type ImageVariant = "thumb" | "full";
 
 let imagesDirectory: Directory | null = null;
 
@@ -34,6 +43,12 @@ function toDataUri(base64: string): string {
     : `data:image/jpeg;base64,${base64}`;
 }
 
+function readLocal(id: string): string | null {
+  if (isWeb) return webCache.get(id) ?? null;
+  const file = fileFor(id);
+  return file.exists ? file.uri : null;
+}
+
 export const images = {
   async saveFromUri(id: string, sourceUri: string): Promise<string | null> {
     if (isWeb) {
@@ -58,16 +73,48 @@ export const images = {
     return destination.uri;
   },
 
-  setRemote(id: string, url: string): void {
-    remoteUris.set(id, url);
+  setRemote(id: string, remote: RemoteImage | string): void {
+    remoteImages.set(
+      id,
+      typeof remote === "string"
+        ? { full: remote, thumb: remote, cacheKey: remote }
+        : remote,
+    );
   },
 
+  /** A URI for the full image: the local copy if there is one, else remote. */
   read(id: string): string | null {
-    const remote = remoteUris.get(id);
-    if (remote) return remote;
-    if (isWeb) return webCache.get(id) ?? null;
-    const file = fileFor(id);
-    return file.exists ? file.uri : null;
+    return readLocal(id) ?? remoteImages.get(id)?.full ?? null;
+  },
+
+  /**
+   * What an <Image> should load. Grids pass "thumb" for the small remote
+   * rendition; detail views pass "full". Falls back to whatever exists.
+   */
+  source(id: string, variant: ImageVariant): ImageSource | null {
+    const remote = remoteImages.get(id);
+    const local = readLocal(id);
+    if (variant === "thumb" && remote) {
+      return { uri: remote.thumb, cacheKey: `${remote.cacheKey}#thumb` };
+    }
+    if (local) return { uri: local };
+    if (remote) return { uri: remote.full, cacheKey: remote.cacheKey };
+    return null;
+  },
+
+  /**
+   * A local file URI for the full image, downloading it first if it only
+   * exists remotely. For image processing that needs a file.
+   */
+  async localUri(id: string): Promise<string | null> {
+    const local = readLocal(id);
+    if (local) return local;
+    const remote = remoteImages.get(id);
+    if (!remote) return null;
+    if (isWeb) return remote.full;
+    ensureDirectory();
+    const file = await File.downloadFileAsync(remote.full, fileFor(id));
+    return file.uri;
   },
 
   readBase64(id: string): string | null {
@@ -81,7 +128,7 @@ export const images = {
   },
 
   delete(id: string): void {
-    remoteUris.delete(id);
+    remoteImages.delete(id);
     if (isWeb) {
       webCache.delete(id);
       return;

@@ -1,175 +1,202 @@
-# Archive — Style Assessment Spec
+# Archive — Profile & Preferences (iOS / Expo)
 
-The assessment is the app's core feature. It has been flattened twice
-already (once by the Expo port, once by the legacy importer). This file
-is the source of truth — if an implementation disagrees with it, the
-implementation is wrong.
+Build the Profile stack natively in the Expo app. This is a settings
+screen, not a form: a grouped list of rows that push to sub-pages,
+auto-save everywhere, left-aligned throughout. Read and write through
+Supabase (`user_profile`, `preferences`, `style_assessments`) with the
+existing client and RLS — no local-only blobs.
 
-## Why it works this way
+Show the Profile list, About you, and Colors screens for review before
+building the rest.
 
-A wardrobe is not one identity. Earlier versions scored every piece
-against a single "style read," which produced output telling the user
-their jerseys undermined their elegance — treating a real, deliberate
-style lane as contamination. The fix is multiple ranked lanes, each
-judged inside itself.
+---
 
-## Response contract
+## 1. Navigation
 
-```ts
-interface StyleAssessmentResult {
-  profiles: Array<{
-    id: string;
-    rank: string; // primary | secondary | tertiary | quaternary
-    headline: string;
-    read: string;
-    pillars: string[];
-    direction: string;
-    activity: string; // active | dormant
-    continues_id: string | null;
-  }>;
-  shared_pieces: string[];
-  inputs_hash: string; // set server-side, not by the model
-}
-```
+- App bar profile icon pushes `/profile` (Stack, not a tab).
+- Each row pushes a sub-page in the same Stack: `/profile/account`,
+  `/profile/about`, `/profile/sizes`, `/profile/style`, `/profile/fit`,
+  `/profile/colors`, `/profile/occasions`, `/profile/assessment`,
+  `/profile/stores`, `/profile/budget`, `/profile/climate`,
+  `/profile/privacy/photos`.
+- Sub-page header: back chevron, section name as title in the serif
+  face, left-aligned. Use the native Stack header with the app's
+  tokens, not a custom bar.
+- Toggles and single-value pickers (Units) are inline on the list, no
+  sub-page.
 
-## Id continuity
+## 2. Alignment and typography — global rule
 
-The model returns `continues_id` on each profile. The function, not the
-model, assigns final ids:
+Put these in the shared components so they can't drift per screen:
 
-1. Accept `continues_id` only if it matches an id in the prior
-   assessment.
-2. Match on profile **name**, not rank. A lane that moves from
-   secondary to primary must keep its id — rank is the least stable
-   property an assessment produces, and every outfit tagged to that
-   profile breaks if the id changes.
-3. Reject duplicates: two new profiles cannot claim the same prior id.
-   First valid claim wins; the other gets a fresh id.
-4. Otherwise generate `prof_` + a random suffix.
+- `SectionHeader`: tracked mono caption, accent color, **left-aligned**,
+  16pt horizontal inset, 24pt top / 8pt bottom spacing.
+- `FieldLabel`: tracked mono caption, muted, **left-aligned**, 8pt
+  below to its control.
+- `HelperText`: footnote, muted, **left-aligned**, max two lines.
+- Nothing on these screens is centered except text inside a chip and
+  text inside a full-width button.
 
-Outfit `profile_tag` stores the exact profile id. Auto-tagging skips
-outfits that already carry a tag, from any source.
+## 3. Profile list
 
-## Stale check
-
-Write `inputs_hash` on the assessment record — a hash of the stated
-style text, closet piece ids, inspo image ids, and outfit ids. The
-Style Assessment screen shows the "inputs changed" line only when the
-current hash differs from the stored one, and only when an assessment
-exists.
-
-## The prompt
-
-Send as the system prompt. The four inputs are appended as user
-content: stated style text, closet piece list, inspo images, and up to
-8 self-outfit photos.
+Grouped rows using a shared `SettingsRow` component:
 
 ```
-You are analyzing a person's wardrobe to identify their style
-profiles. Your job is to find the 2-4 distinct style lanes that
-genuinely exist in their world — not to reduce them to one identity.
-
-INPUTS
-
-1. CLOSET — the garments they own
-2. STATED STYLE — how they describe their own style, in their words
-3. INSPO — saved inspiration images
-4. SELF_FITS — photos of outfits they actually wore
-
-These four sources measure different things. Closet is ownership.
-Stated style is self-concept. Inspo is aspiration. Self-fits are
-evidence of what gets assembled and worn. When they disagree, that
-disagreement is DATA about how the lanes are structured — never treat
-it as a flaw, a contradiction, or evidence of poor taste.
-
-METHOD
-
-Step 1 — Cluster the closet.
-Group garments by silhouette, palette, formality, and era or
-subculture reference. The clusters that emerge are candidate profiles.
-A cluster with real mass — several pieces, deliberately acquired — is
-a real lane, regardless of whether it matches the stated style.
-
-Step 2 — Confirm and weight with self-fits.
-A cluster that appears in worn outfits is an active lane. A cluster
-with closet mass but no appearances is owned but dormant: note it,
-rank it lower, do not dismiss it. Recency matters — lanes appearing in
-recent fits carry more weight. If self-fits are absent or sparse, say
-so in the profile's read and rank on closet mass alone rather than
-inventing confidence you do not have.
-
-Step 3 — Name the primary from the stated style.
-The person's own description sets the thesis of the primary profile.
-Honor it even if it is not the largest cluster — but if the closet and
-fits do not support it as dominant, say so plainly and neutrally in
-that profile's read.
-
-Step 4 — Use inspo for direction, not definition.
-Inspo rarely defines a lane by itself. Read it as where a lane is
-HEADING — proportion shifts, palette expansion, pieces not yet owned.
-Divergence between inspo and closet is trajectory, not failure.
-
-Step 5 — Rank and output.
-Rank by closet mass, self-fit frequency, and stated emphasis together.
-Output at least 2 profiles and at most 4.
-
-HARD RULES
-
-- Never describe a piece as undermining or interrupting another
-  profile. A piece in lane B is not a defect in lane A.
-- Never use the phrase "blind spot," and never frame the analysis as
-  diagnosing a problem.
-- Do not collapse multiple lanes into one hybrid label to make the
-  read tidier.
-- Judge nothing against a single master identity. All evaluation
-  happens inside a named profile.
-- Be specific and concrete. Reference actual pieces by name, not
-  vibes.
-
-CONTINUITY
-
-You will be given the profiles from the previous assessment, if one
-exists. For each profile you return, set continues_id to the id of the
-prior profile that represents the same style lane — matching on what
-the lane IS, not on its rank, since ranks shift between runs. Set it
-to null for a genuinely new lane. Never assign the same continues_id
-to two profiles.
-
-OUTPUT
-
-Return only valid JSON, no markdown fences, no preamble, matching
-exactly this shape:
-
-{
-  "profiles": [
-    {
-      "rank": "primary | secondary | tertiary | quaternary",
-      "headline": "short, specific, non-generic name for this lane",
-      "read": "3-4 sentences on what this lane is, what holds it
-               together, and what the sources say about it",
-      "pillars": ["4 short phrases — the core codes of this lane"],
-      "direction": "where inspo suggests this lane is heading, or
-                    'stable'",
-      "activity": "active | dormant",
-      "continues_id": "prior profile id, or null"
-    }
-  ],
-  "shared_pieces": ["pieces that serve more than one profile"]
-}
+label            (body, bone)
+description      (footnote, muted)              summary  ›
 ```
 
-## Notes for the UI
+- `summary` is right-aligned, muted, one line, ellipsis. Every row that
+  holds a value shows one — see the table.
+- Row min height 56pt, 44pt tap target satisfied by the row itself.
+- Group background one step lighter than the page, 16pt radius,
+  hairline dividers inset to the label's left edge.
 
-- `shared_pieces` renders as the wardrobe's connective tissue and
-  reads as a strength, not a warning.
-- `activity: dormant` is neutral information, not a criticism.
-- Render each profile as its own card with the rank as a tracked mono
-  label above the headline. Never merge them into one summary.
-- The Profile list row summary shows the primary headline plus a count
-  — e.g. `Prep-Street Classicist +2`.
+| Section  | Row                   | Description                        | Summary                                     |
+|----------|-----------------------|------------------------------------|---------------------------------------------|
+| YOU      | Account               | Name, email, mobile                | name or "Not set"                           |
+| YOU      | About you             | Height, weight, build              | `5'10" · 175 lb` or "Not set"               |
+| YOU      | Sizes                 | Tops, bottoms, shoes, outerwear    | `M · 32×32 · 10.5`                          |
+| STYLE    | My Style              | In your own words                  | first ~30 chars of text or "Not set"        |
+| STYLE    | Fit preferences       | Per category, cuffing, length      | `Slim tops · Slim bottoms · Cuffed`         |
+| STYLE    | Colors                | Worn most and avoided              | `6 worn · 2 avoided`                        |
+| STYLE    | Occasions             | What you dress for                 | `4 selected`                                |
+| STYLE    | Style assessment      | Your style profiles                | profile names `Prep +2` or "Not run yet"    |
+| SHOPPING | Stores                | Where you shop                     | `4 selected`                                |
+| SHOPPING | Budget                | Typical spend per category         | `$–$$` or "Not set"                         |
+| APP      | Auto-tag outfits      | (toggle)                           | —                                           |
+| APP      | Run assessment automatically | (toggle, default off)       | —                                           |
+| APP      | Units                 | (inline picker)                    | Imperial / Metric                           |
+| APP      | Climate               | Affects seasonal suggestions       | value or "Not set"                          |
+| PRIVACY  | Where photos are stored | —                                | —                                           |
+| PRIVACY  | Export my data        | Everything, as one JSON file       | —                                           |
+| PRIVACY  | Delete my account     | Removes all data and photos        | — (destructive color)                       |
 
-## What is NOT in this contract
+Summaries are derived in a small selector module so the list never
+reaches into raw records.
 
-`blind_spot` was deliberately removed. Do not reintroduce it under any
-name — not as `risk`, `gap`, `watch_out`, or a per-profile caveat
-field. Wardrobe gaps are a separate feature on the Insights tab.
+## 4. Save behavior
+
+- **Auto-save everywhere.** No Save buttons on any sub-page.
+- Text fields save on blur. Chips and toggles save on tap.
+- Debounce writes 400ms; coalesce chip taps.
+- Show a subtle "Saved" state in the header (fades in/out, ~1s). No
+  toasts.
+- Optimistic UI; on write failure, revert the control and show one
+  inline error line under the field. Never block navigation.
+
+## 5. Sub-pages
+
+### Account
+- Name, email (read-only from auth), mobile.
+- Sign out.
+- Placeholder rows for password change and Apple sign-in linking; wire
+  when auth pass lands.
+
+### About you
+- Helper: "All optional. These only improve fit advice and aren't shown
+  anywhere else."
+- **Height**: two numeric fields, feet + inches, when Units = Imperial;
+  one cm field when Metric. Numeric keyboard.
+- **Weight**: one numeric field, unit label from Units setting.
+- **Birth year**: four-digit numeric. Do not store age.
+- **Build**: single-select chips — Slim, Athletic, Average, Stocky,
+  Broad, Tall.
+
+### Sizes
+- **Tops**: letter size (XS–XXL chips) and optional neck/sleeve
+  (two numeric fields, `15.5 / 34`).
+- **Bottoms**: waist and inseam, numeric.
+- **Shoes**: numeric size plus optional width chips (D, E, EE).
+- **Outerwear**: letter size chips.
+
+### My Style
+- Helper: "Describe your style in your own words. This is one input to
+  your style profiles alongside your closet, inspo, and outfits."
+- Full-height multiline field, body size, sentence case. Saves on blur.
+
+### Fit preferences
+- Multi-select chips per category.
+- Tops and Outerwear: Muscle, Slim, Regular, Relaxed, Oversized,
+  No preference.
+- Bottoms: Skinny, Slim, Regular, Relaxed, Loose, No preference.
+- Cuffing: Cuffed, Uncuffed, No preference (single-select).
+- Length: No break, Slight break, Full break, No preference
+  (single-select).
+- Vocabulary must match the `fit` attribute on pieces exactly.
+
+### Colors
+- **One list**, not two. Each chip cycles on tap:
+  neutral → worn most → avoid → neutral.
+- States: neutral = outlined muted; worn most = filled accent; avoid =
+  outlined with a small ✕ before the label.
+- Legend line at top: "Tap once for worn most, twice to avoid."
+- One custom-add field. Custom chips get a long-press to remove.
+
+### Occasions
+- Multi-select chips: Work, Gym, Going out, Date night, Weekend,
+  Travel, Formal events, Church.
+- Custom-add field; long-press to remove custom.
+- Selected chips sort to the front.
+
+### Style assessment
+- Description: "A synthesis of your written profile, inspo, closet, and
+  outfit photos — broken into the distinct style lanes running through
+  your closet."
+- Before first run: description and a primary "Run assessment" button
+  only. **Do not** show the stale-warning line.
+- After a run: profile cards (rank label, headline, read, pillars,
+  direction, activity), then `shared_pieces` as a list, then the stale
+  line if inputs changed, then "Update assessment."
+- Cards left-aligned, rank as tracked mono caption above the headline.
+
+### Stores
+- Multi-select chips. Defaults: H&M, Uniqlo, J.Crew, Abercrombie,
+  Banana Republic, Nordstrom, Zara, Nike, Foot Locker, Amazon,
+  Thrift / vintage, Online marketplaces.
+- Custom-add; selected sort to front.
+
+### Budget
+- Per category (Tops, Bottoms, Shoes, Outerwear): single-select
+  `$`, `$$`, `$$$`, `$$$$` with a helper line giving the ranges.
+
+### Climate
+- Single-select: Hot / humid, Warm, Temperate, Cool, Cold — plus an
+  optional city text field.
+
+### Where photos are stored
+- Static explanation screen. Copy will change when Supabase Storage
+  lands — keep it in one constant.
+
+### Export my data
+- Calls the existing export and presents the share sheet.
+
+### Delete my account
+- Two-step confirm (type "DELETE"). Calls the delete Edge Function
+  when it exists; until then, disabled with a note.
+
+## 6. Data mapping
+
+- `user_profile`: name, mobile, height_cm, weight_kg, birth_year,
+  build, sizes (jsonb). Store metric internally; convert for display
+  from the Units setting.
+- `preferences`: style_text, fit (jsonb per category), colors (jsonb:
+  `{worn: [], avoid: []}`), occasions[], stores[], budget (jsonb),
+  units, climate, auto_tag, auto_assess.
+- `style_assessments`: read latest for summary and the assessment page.
+- All reads scoped by RLS; never pass `user_id` from the client.
+
+## 7. Components to create
+
+- `SettingsRow`, `SettingsGroup`, `SectionHeader`
+- `Chip` with variants: `outlined`, `filled`, `avoid`; `ChipGroup`
+  with `single | multi | tristate` modes
+- `FieldLabel`, `HelperText`, `NumericField`, `MultilineField`
+- `SavedIndicator` (header)
+- `useAutosave(record, writeFn)` hook with debounce and revert
+
+## 8. Out of scope
+
+- Onboarding flow (separate pass, reuses these sub-pages)
+- Auth screens beyond sign-out
+- Account deletion backend
