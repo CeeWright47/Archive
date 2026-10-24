@@ -1,4 +1,4 @@
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, Text, View } from "react-native";
 
 import {
     ChipGroup,
@@ -41,53 +41,38 @@ export default function SizesScreen() {
               })
             }
           />
-          <View style={styles.row}>
-            <NumericField
-              value={p.sizes.tops.neck}
-              onCommit={(neck) =>
-                profile.update({
-                  sizes: { ...p.sizes, tops: { ...p.sizes.tops, neck } },
-                })
-              }
-              unit="neck"
-              placeholder="15.5"
-            />
-            <NumericField
-              value={p.sizes.tops.sleeve}
-              onCommit={(sleeve) =>
-                profile.update({
-                  sizes: { ...p.sizes, tops: { ...p.sizes.tops, sleeve } },
-                })
-              }
-              unit="sleeve"
-              placeholder="34"
-            />
-          </View>
           <FieldLabel>Bottoms</FieldLabel>
           <View style={styles.row}>
-            <NumericField
-              value={p.sizes.bottoms.waist}
-              onCommit={(waist) =>
-                profile.update({
-                  sizes: { ...p.sizes, bottoms: { ...p.sizes.bottoms, waist } },
-                })
-              }
-              unit="waist"
-              integer
-            />
-            <NumericField
-              value={p.sizes.bottoms.inseam}
-              onCommit={(inseam) =>
-                profile.update({
-                  sizes: {
-                    ...p.sizes,
-                    bottoms: { ...p.sizes.bottoms, inseam },
-                  },
-                })
-              }
-              unit="inseam"
-              integer
-            />
+            <View style={styles.half}>
+              <Text style={styles.miniLabel}>Waist</Text>
+              <NumericField
+                value={p.sizes.bottoms.waist}
+                onCommit={(waist) =>
+                  profile.update({
+                    sizes: {
+                      ...p.sizes,
+                      bottoms: { ...p.sizes.bottoms, waist },
+                    },
+                  })
+                }
+                integer
+              />
+            </View>
+            <View style={styles.half}>
+              <Text style={styles.miniLabel}>Inseam</Text>
+              <NumericField
+                value={p.sizes.bottoms.inseam}
+                onCommit={(inseam) =>
+                  profile.update({
+                    sizes: {
+                      ...p.sizes,
+                      bottoms: { ...p.sizes.bottoms, inseam },
+                    },
+                  })
+                }
+                integer
+              />
+            </View>
           </View>
           {isFemale && (
             <>
@@ -113,6 +98,7 @@ export default function SizesScreen() {
               }
               unit={isFemale ? "women's" : undefined}
               placeholder="10.5"
+              style={styles.half}
             />
             {isFemale && (
               <NumericField
@@ -127,6 +113,7 @@ export default function SizesScreen() {
                 }
                 unit="men's"
                 placeholder="8.5"
+                style={styles.half}
               />
             )}
           </View>
@@ -158,4 +145,12 @@ export default function SizesScreen() {
 
 const styles = StyleSheet.create({
   row: { flexDirection: "row", gap: theme.spacing.xs },
+  half: { flex: 1 },
+  miniLabel: {
+    fontSize: theme.typography.footnote.fontSize,
+    lineHeight: theme.typography.footnote.lineHeight,
+    color: theme.colors.textMuted,
+    marginBottom: theme.spacing.xxs,
+    marginLeft: theme.spacing.xxs,
+  },
 });

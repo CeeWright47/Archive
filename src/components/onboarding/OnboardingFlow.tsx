@@ -409,34 +409,38 @@ function FitSizesStep({
           />
           <FieldLabel>Bottom size</FieldLabel>
           <View style={styles.fieldRow}>
-            <NumericField
-              value={profile.sizes.bottoms.waist}
-              onCommit={(waist) =>
-                updateProfile({
-                  ...profile,
-                  sizes: {
-                    ...profile.sizes,
-                    bottoms: { ...profile.sizes.bottoms, waist },
-                  },
-                })
-              }
-              unit="waist"
-              integer
-            />
-            <NumericField
-              value={profile.sizes.bottoms.inseam}
-              onCommit={(inseam) =>
-                updateProfile({
-                  ...profile,
-                  sizes: {
-                    ...profile.sizes,
-                    bottoms: { ...profile.sizes.bottoms, inseam },
-                  },
-                })
-              }
-              unit="inseam"
-              integer
-            />
+            <View style={styles.half}>
+              <Text style={styles.miniLabel}>Waist</Text>
+              <NumericField
+                value={profile.sizes.bottoms.waist}
+                onCommit={(waist) =>
+                  updateProfile({
+                    ...profile,
+                    sizes: {
+                      ...profile.sizes,
+                      bottoms: { ...profile.sizes.bottoms, waist },
+                    },
+                  })
+                }
+                integer
+              />
+            </View>
+            <View style={styles.half}>
+              <Text style={styles.miniLabel}>Inseam</Text>
+              <NumericField
+                value={profile.sizes.bottoms.inseam}
+                onCommit={(inseam) =>
+                  updateProfile({
+                    ...profile,
+                    sizes: {
+                      ...profile.sizes,
+                      bottoms: { ...profile.sizes.bottoms, inseam },
+                    },
+                  })
+                }
+                integer
+              />
+            </View>
           </View>
           {isFemale ? (
             <>
@@ -467,6 +471,7 @@ function FitSizesStep({
                   }
                   unit="women's"
                   placeholder="8"
+                  style={styles.half}
                 />
                 <NumericField
                   value={profile.sizes.shoes.sizeMens}
@@ -481,6 +486,7 @@ function FitSizesStep({
                   }
                   unit="men's"
                   placeholder="6.5"
+                  style={styles.half}
                 />
               </View>
             </>
@@ -660,6 +666,14 @@ const styles = StyleSheet.create({
     color: theme.colors.textMuted,
   },
   fieldRow: { flexDirection: "row", gap: theme.spacing.xs },
+  half: { flex: 1 },
+  miniLabel: {
+    fontSize: theme.typography.footnote.fontSize,
+    lineHeight: theme.typography.footnote.lineHeight,
+    color: theme.colors.textMuted,
+    marginBottom: theme.spacing.xxs,
+    marginLeft: theme.spacing.xxs,
+  },
   storeChips: {
     flexDirection: "row",
     flexWrap: "wrap",
