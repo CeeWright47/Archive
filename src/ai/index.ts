@@ -109,31 +109,45 @@ function readableBody(value: unknown): EdgeFunctionError | null {
 }
 
 async function readableError(error: unknown): Promise<Error> {
-  // Some SDK versions/paths expose the parsed body directly on the error.
-  const direct = readableBody(error);
-  if (direct) return direct;
-
-  // Otherwise error.context is the raw fetch Response for an HTTP error.
-  // Duck-type rather than `instanceof Response` — React Native's fetch
-  // polyfill doesn't always line up with the global Response constructor
-  // this module sees.
+  // A thrown FunctionsHttpError's own `.message` is always a fixed generic
+  // string ("Edge Function returned a non-2xx status code") — never the
+  // real body an Edge Function sent back. That body lives on
+  // `error.context`, the raw fetch Response, read below. Duck-type rather
+  // than `instanceof Response` — React Native's fetch polyfill doesn't
+  // always line up with the global Response constructor this module sees.
   const context = (error as { context?: unknown } | null)?.context as
     | { json?: unknown; text?: unknown }
     | null
     | undefined;
   if (context) {
     try {
-      let parsed: unknown = null;
-      if (typeof context.json === "function") {
-        parsed = await (context.json as () => Promise<unknown>)();
-      } else if (typeof context.text === "function") {
-        const text = await (context.text as () => Promise<string>)();
-        parsed = text ? JSON.parse(text) : null;
+      // Read as text first (works for any body, JSON or not) rather than
+      // calling .json() directly — a non-2xx can come from the Edge
+      // Functions platform itself, or from an out-of-date function deploy
+      // that doesn't wrap errors, with a body that isn't our {code,
+      // message} shape. .json() throwing on that discarded the real reason
+      // entirely, falling back to the SDK's generic message below.
+      const text =
+        typeof context.text === "function"
+          ? await (context.text as () => Promise<string>)()
+          : typeof context.json === "function"
+            ? JSON.stringify(await (context.json as () => Promise<unknown>)())
+            : null;
+      if (text) {
+        let parsed: unknown = null;
+        try {
+          parsed = JSON.parse(text);
+        } catch {
+          // Not JSON — fall through, the raw text is used below.
+        }
+        const fromBody = readableBody(parsed);
+        if (fromBody) return fromBody;
+        // Valid response body, but not our {code, message} shape (or not
+        // JSON at all) — still more useful than the SDK's generic message.
+        return new EdgeFunctionError("internal_error", text.slice(0, 200));
       }
-      const fromBody = readableBody(parsed);
-      if (fromBody) return fromBody;
     } catch {
-      // Body wasn't readable JSON — fall through to the generic error below.
+      // Body wasn't readable at all — fall through to the generic error below.
     }
   }
   return error instanceof Error
